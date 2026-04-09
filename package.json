@@ -1,0 +1,45 @@
+{
+  "name": "mitid",
+  "version": "0.1.0",
+  "description": "CLI and library for authenticating with Denmark's MitID identity system",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "mitid": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mitid",
+    "denmark",
+    "authentication",
+    "identity",
+    "nemid",
+    "test",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Saturate/mitid-cli"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.2",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "citty": "^0.2.2"
+  }
+}
