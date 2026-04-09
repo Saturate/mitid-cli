@@ -139,3 +139,29 @@ export async function approve(
 
   throw new Error("Timed out waiting for transaction (180s)");
 }
+
+export async function watch(
+  uuid: string,
+  authId: string,
+  baseUrl: string = DEFAULT_BASE_URL,
+  onStatus?: SimulatorStatusCallback,
+): Promise<never> {
+  const log = onStatus ?? console.log;
+  let count = 0;
+
+  log("Watching for MitID transactions (Ctrl+C to stop)...\n");
+
+  while (true) {
+    try {
+      await approve(uuid, authId, baseUrl, (msg) => {
+        // Suppress the "Waiting for MitID transaction..." on repeat runs
+        if (count > 0 && msg.includes("Waiting for")) return;
+        log(msg);
+      });
+      count++;
+      log(`  (${count} transaction${count > 1 ? "s" : ""} approved)\n`);
+    } catch {
+      // Timeout from approve - just restart
+    }
+  }
+}

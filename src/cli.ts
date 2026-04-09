@@ -3,7 +3,7 @@
 import { defineCommand, runMain } from "citty";
 import { exec } from "child_process";
 import { resolve, simulatorUrl } from "./identity.js";
-import { approve } from "./simulator.js";
+import { approve, watch } from "./simulator.js";
 import { login } from "./login.js";
 import {
   loadUsers,
@@ -79,6 +79,12 @@ const approveCmd = defineCommand({
   meta: { name: "approve", description: "Poll and auto-approve a pending MitID login via the simulator" },
   args: {
     query: queryArg,
+    watch: {
+      type: "boolean",
+      description: "Keep running and approve every incoming transaction",
+      alias: ["w"],
+      default: false,
+    },
     env: envArg,
   },
   async run({ args }) {
@@ -86,11 +92,14 @@ const approveCmd = defineCommand({
     const { identity, codeApp } = await resolve(resolveQuery(args.query), baseUrl);
     if (!codeApp) throw new Error("No code app authenticator found");
 
-    console.log(`Waiting for MitID transaction...`);
     console.log(`  User: ${identity.userId} (${identity.identityName})`);
     console.log(`  Auth: ${codeApp.authenticatorId}\n`);
 
-    await approve(identity.identityId, codeApp.authenticatorId, baseUrl);
+    if (args.watch) {
+      await watch(identity.identityId, codeApp.authenticatorId, baseUrl);
+    } else {
+      await approve(identity.identityId, codeApp.authenticatorId, baseUrl);
+    }
   },
 });
 
@@ -185,6 +194,10 @@ const saveCmd = defineCommand({
       description: "Short alias for this identity (default: username)",
       required: false,
     },
+    note: {
+      type: "string",
+      description: "A note to attach to this identity (e.g. 'has 3 addresses', 'expired CPR')",
+    },
     env: envArg,
   },
   async run({ args }) {
@@ -198,11 +211,12 @@ const saveCmd = defineCommand({
       uuid: identity.identityId,
       cpr: identity.cprNumber,
       authId: codeApp?.authenticatorId ?? null,
+      note: args.note ?? null,
       savedAt: new Date().toISOString(),
     };
 
     addOrUpdate(entry);
-    console.log(`Saved: ${entry.alias} (${entry.name})`);
+    console.log(`Saved: ${entry.alias} (${entry.name})${entry.note ? ` - ${entry.note}` : ""}`);
   },
 });
 
@@ -218,12 +232,12 @@ const listCmd = defineCommand({
 
     const pad = (s: string | null | undefined, n: number) => (s ?? "").padEnd(n);
     console.log("\n  Saved MitID Test Identities");
-    console.log("  " + "=".repeat(70));
-    console.log(`  ${pad("Alias", 16)} ${pad("Name", 22)} ${pad("Username", 16)} ${pad("Auth ID", 18)}`);
-    console.log("  " + "-".repeat(70));
+    console.log("  " + "=".repeat(80));
+    console.log(`  ${pad("Alias", 14)} ${pad("Name", 20)} ${pad("Username", 14)} ${pad("Note", 30)}`);
+    console.log("  " + "-".repeat(80));
 
     for (const u of users) {
-      console.log(`  ${pad(u.alias, 16)} ${pad(u.name, 22)} ${pad(u.username, 16)} ${pad(u.authId ?? "-", 18)}`);
+      console.log(`  ${pad(u.alias, 14)} ${pad(u.name, 20)} ${pad(u.username, 14)} ${pad(u.note ?? "", 30)}`);
     }
     console.log();
   },
@@ -241,6 +255,108 @@ const removeCmd = defineCommand({
   run({ args }) {
     const removed = removeByAlias(args.alias);
     console.log(`Removed: ${removed.alias} (${removed.name})`);
+  },
+});
+
+const guideCmd = defineCommand({
+  meta: { name: "guide", description: "Show usage guide for humans and AI agents" },
+  args: {},
+  run() {
+    console.log(`
+mitid — MitID Test Login Tool
+==============================
+
+This tool authenticates with Denmark's MitID pre-production test environment
+(pp.mitid.dk) without a browser. It implements the MitID authentication protocol
+directly (custom SRP-6a + APP authenticator flow) and auto-approves logins via
+the MitID test simulator.
+
+SETUP
+-----
+  # Save a test identity for quick access
+  mitid save <username> <alias>
+  mitid list
+
+WORKFLOW 1: Manual browser testing
+-----------------------------------
+  You login in your browser, the CLI auto-approves the MitID step.
+
+  1. Run in a terminal:     mitid approve <alias> --watch
+  2. In your browser:       Click "Log ind med MitID" on your service
+  3. Enter the username:    The one from 'mitid info <alias>'
+  4. The CLI auto-approves  The browser completes the login
+  5. Repeat as needed       --watch keeps approving every login
+
+WORKFLOW 2: Fully automated login (get session cookies)
+-------------------------------------------------------
+  No browser needed. Gets session cookies you can use with curl, Playwright, etc.
+
+  # Terminal 1: start the login
+  mitid login <alias> https://your-service.example.com/login/mitid
+
+  # Terminal 2: auto-approve when it says "Waiting for MitID app approval"
+  mitid approve <alias>
+
+  The login command outputs session cookies and copies them to clipboard.
+
+WORKFLOW 3: AI agent with browser automation (Chrome MCP, Playwright, etc.)
+---------------------------------------------------------------------------
+  For AI agents that control a browser but can't interact with MitID's widget
+  (it blocks automated browsers). The agent should:
+
+  1. Run 'mitid login <user> <service-login-url>' in background
+  2. Run 'mitid approve <user>' in parallel to auto-approve
+  3. Capture the session cookies from the login output
+  4. In the browser: navigate to the service URL
+  5. Inject cookies via JavaScript:
+       document.cookie = "CookieName=value; path=/";
+  6. Reload the page — the browser is now logged in
+  7. Proceed with testing
+
+  Example cookie injection (browser console / evaluate_script):
+    const cookies = { "SessionCookie": "<value>", "Token": "<value>" };
+    for (const [name, value] of Object.entries(cookies)) {
+      document.cookie = name + "=" + value + "; path=/";
+    }
+    location.reload();
+
+LIBRARY USAGE
+-------------
+  import { MitIDClient, login, approve, resolve } from 'mitid';
+
+  // Look up a test identity
+  const { identity, codeApp } = await resolve('Username123');
+
+  // Full login flow
+  const result = await login('Username123', 'https://service.example.com/login');
+  console.log(result.cookies);
+
+  // Or use the client directly
+  const client = new MitIDClient('https://pp.mitid.dk');
+  await client.init(clientHash, sessionId);
+  await client.identifyAndGetAuthenticators('Username123');
+  await client.authenticateWithApp();
+  const authCode = await client.finalize();
+
+HOW IT WORKS
+------------
+  The tool replaces two things that normally require human interaction:
+
+  1. The MitID browser widget (JavaScript iframe)
+     → Replaced by a direct HTTP implementation of the MitID protocol
+       (SRP-6a authentication with MitID's custom parameters)
+
+  2. The MitID app approval (phone notification)
+     → Replaced by the simulator API (pp.mitid.dk test tool)
+       which auto-approves with PIN 112233
+
+  Protocol flow:
+    Service → OAuth redirect → Criipto/NemLog-in broker → MitID session
+    → Identify user → APP auth (push to simulator) → Poll for approval
+    → SRP key exchange → Finalize → Authorization code → Service callback
+    → Session cookies
+
+`);
   },
 });
 
@@ -262,6 +378,7 @@ const main = defineCommand({
     save: saveCmd,
     list: listCmd,
     remove: removeCmd,
+    guide: guideCmd,
   },
 });
 

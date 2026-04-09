@@ -16,6 +16,8 @@
   },
   "scripts": {
     "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -37,7 +39,8 @@
   },
   "devDependencies": {
     "@types/node": "^25.5.2",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.4"
   },
   "dependencies": {
     "citty": "^0.2.2"

@@ -13,6 +13,7 @@ export interface SavedIdentity {
   uuid: string;
   cpr: string;
   authId: string | null;
+  note: string | null;
   savedAt: string;
 }
 
@@ -37,6 +38,10 @@ export function addOrUpdate(entry: SavedIdentity): void {
     (u) => u.uuid === entry.uuid || u.alias === entry.alias,
   );
   if (idx >= 0) {
+    // Preserve existing note if not explicitly set
+    if (entry.note === null && users[idx]!.note) {
+      entry.note = users[idx]!.note;
+    }
     users[idx] = entry;
   } else {
     users.push(entry);

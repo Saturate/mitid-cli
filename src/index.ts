@@ -4,7 +4,7 @@ export { MitIDClient } from "./client.js";
 export type { MitIDClientOptions, StatusCallback, Authenticators } from "./client.js";
 export { login } from "./login.js";
 export type { LoginResult, LoginStatusCallback } from "./login.js";
-export { approve } from "./simulator.js";
+export { approve, watch } from "./simulator.js";
 export type { SimulatorStatusCallback } from "./simulator.js";
 export {
   searchIdentity,
