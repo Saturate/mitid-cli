@@ -100,13 +100,13 @@ const loginCmd = defineCommand({
     query: queryArg,
     url: {
       type: "positional",
-      description: "Service login URL (default: DCC dev environment)",
-      required: false,
+      description: "Service login URL that triggers a MitID authentication flow",
+      required: true,
     },
     env: envArg,
   },
   async run({ args }) {
-    const serviceUrl = args.url ?? "https://mitdcc.dev.integrationplatform.dccenergi.dev/api/auth/login/mitid?returnUrl=%2F";
+    const serviceUrl = args.url;
 
     console.log(`Logging in as ${args.query} to ${new URL(serviceUrl).hostname}...`);
     console.log(`Run 'mitid approve ${args.query}' in another terminal to auto-approve.\n`);
