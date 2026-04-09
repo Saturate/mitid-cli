@@ -151,11 +151,14 @@ The tool replaces two things that normally require a browser and a phone:
 
 ```
 Service login URL
-  → OAuth redirect chain → Criipto/NemLog-in broker → MitID session
-  → Identify user → APP auth (push to simulator) → Poll for approval
-  → SRP-6a key exchange → Finalize → Authorization code
-  → Service callback → Session cookies
+  → OAuth redirect chain → Broker (Criipto/NemLog-in/etc.)
+  → Extract "aux" from broker page
+  → MitID core API: identify user → APP auth (push to simulator)
+  → Poll for approval → SRP-6a key exchange → Finalize
+  → Authorization code → Broker callback → Session cookies
 ```
+
+The `aux` (auxiliary data) is a base64-encoded JSON blob that the broker passes to the MitID widget. It contains the `authenticationSessionId` and a `checksum` needed to start the authentication. Each broker delivers it differently (JSON endpoint, inline JS, POST response), which is why providers need different extraction logic.
 
 ## Supported providers
 
