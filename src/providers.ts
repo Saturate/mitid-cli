@@ -105,7 +105,7 @@ const nemlogin: Provider = {
 
   detect: (url, body) =>
     url.includes("nemlog-in.mitid.dk") ||
-    body.includes("__RequestVerificationToken") && body.includes('"Aux"'),
+    (body.includes("__RequestVerificationToken") && body.includes('"Aux"')),
 
   async bootstrap(url, body, cookies) {
     // Extract __RequestVerificationToken from hidden form input
@@ -146,13 +146,16 @@ const nemlogin: Provider = {
           redirect: "manual",
         });
 
+        if (resp.status >= 300 && resp.status < 400) {
+          const location = resp.headers.get("location");
+          if (!location) throw new Error("NemLog-in redirect without location header");
+          return { redirectUrl: location };
+        }
+
         // Response is HTML with a SAML form; extract action URL
         const respBody = await resp.text();
         const actionMatch = respBody.match(/action="([^"]+)"/);
 
-        if (resp.status >= 300 && resp.status < 400) {
-          return { redirectUrl: resp.headers.get("location")! };
-        }
 
         if (actionMatch) {
           // SAML form - extract RelayState and SAMLResponse, build redirect

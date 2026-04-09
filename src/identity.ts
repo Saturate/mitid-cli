@@ -80,6 +80,7 @@ async function api(
   };
   if (body) opts.body = JSON.stringify(body);
   const resp = await fetch(`${baseUrl}${path}`, opts);
+  if (!resp.ok) throw new Error(`MitID API ${method} ${path} failed: ${resp.status}`);
   return resp.json();
 }
 

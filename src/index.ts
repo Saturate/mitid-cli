@@ -24,5 +24,7 @@ export {
   findByAlias,
   addOrUpdate,
   removeByAlias,
+  exportUsers,
+  importUsers,
 } from "./storage.js";
 export type { SavedIdentity } from "./storage.js";

@@ -19,7 +19,11 @@ export interface SavedIdentity {
 
 export function loadUsers(): SavedIdentity[] {
   if (!existsSync(USERS_FILE)) return [];
-  return JSON.parse(readFileSync(USERS_FILE, "utf-8")) as SavedIdentity[];
+  try {
+    return JSON.parse(readFileSync(USERS_FILE, "utf-8")) as SavedIdentity[];
+  } catch {
+    throw new Error(`Failed to parse ${USERS_FILE} — file may be corrupted. Check or delete it.`);
+  }
 }
 
 export function saveUsers(users: SavedIdentity[]): void {
@@ -47,6 +51,33 @@ export function addOrUpdate(entry: SavedIdentity): void {
     users.push(entry);
   }
   saveUsers(users);
+}
+
+export function exportUsers(): string {
+  return JSON.stringify(loadUsers(), null, 2);
+}
+
+export function importUsers(json: string): number {
+  let entries: SavedIdentity[];
+  try {
+    entries = JSON.parse(json) as SavedIdentity[];
+  } catch {
+    throw new Error("Invalid JSON. Expected an array of saved identities.");
+  }
+
+  if (!Array.isArray(entries)) {
+    throw new Error("Expected a JSON array of identities.");
+  }
+
+  let imported = 0;
+  for (const entry of entries) {
+    if (!entry.alias || !entry.username || !entry.uuid) {
+      continue; // skip invalid entries
+    }
+    addOrUpdate(entry);
+    imported++;
+  }
+  return imported;
 }
 
 export function removeByAlias(aliasOrQuery: string): SavedIdentity {

@@ -279,10 +279,11 @@ export class MitIDClient {
     const { pollUrl, ticket } = initData;
     log("Waiting for MitID app approval...");
 
-    // Poll for approval
+    // Poll for approval (5 minute max)
+    const pollDeadline = Date.now() + 300_000;
     let response: string;
     let responseSignature: string;
-    while (true) {
+    while (Date.now() < pollDeadline) {
       const pollResp = await this.fetch(pollUrl, {
         method: "POST",
         body: JSON.stringify({ ticket }),
@@ -310,6 +311,11 @@ export class MitIDClient {
       }
 
       throw new Error(`Unexpected poll status: ${poll.status}`);
+    }
+
+    // If we get here, the loop condition failed (deadline passed) without a break
+    if (!response! || !responseSignature!) {
+      throw new Error("Timed out waiting for MitID app approval (5 minutes)");
     }
 
     log("Approved! Completing SRP...");

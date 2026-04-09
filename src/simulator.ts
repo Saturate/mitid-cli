@@ -42,6 +42,7 @@ async function sim(
   };
   if (body) opts.body = JSON.stringify(body);
   const resp = await fetch(url, opts);
+  if (!resp.ok) throw new Error(`Simulator API ${method} ${url} failed: ${resp.status}`);
   return resp.json();
 }
 

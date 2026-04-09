@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { defineCommand, runMain } from "citty";
-import { exec } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -17,10 +17,29 @@ import {
   findByAlias,
   addOrUpdate,
   removeByAlias,
+  exportUsers,
+  importUsers,
 } from "./storage.js";
 import type { SavedIdentity } from "./index.js";
 
 const DEFAULT_BASE_URL = "https://pp.mitid.dk";
+
+function copyToClipboard(text: string): boolean {
+  try {
+    spawnSync("pbcopy", { input: text, stdio: ["pipe", "ignore", "ignore"] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function openUrl(url: string): void {
+  try {
+    execFileSync("open", [url], { stdio: "ignore" });
+  } catch {
+    console.log(`Could not open browser. URL: ${url}`);
+  }
+}
 
 function getBaseUrl(env?: string): string {
   return env === "prod" ? "https://www.mitid.dk" : DEFAULT_BASE_URL;
@@ -138,8 +157,9 @@ const loginCmd = defineCommand({
         .filter(([, v]) => v)
         .map(([k, v]) => `${k}=${v}`)
         .join("; ");
-      exec(`echo -n ${JSON.stringify(cookieStr)} | pbcopy`);
-      console.log("\nCookies copied to clipboard");
+      if (copyToClipboard(cookieStr)) {
+        console.log("\nCookies copied to clipboard");
+      }
     }
   },
 });
@@ -157,7 +177,7 @@ const openCmd = defineCommand({
 
     const url = simulatorUrl(identity.identityId, codeApp.authenticatorId, baseUrl);
     console.log(`Opening simulator for ${identity.identityName}...`);
-    exec(`open "${url}"`);
+    openUrl(url);
   },
 });
 
@@ -173,8 +193,11 @@ const copyCmd = defineCommand({
     if (!codeApp) throw new Error("No code app authenticator found");
 
     const url = simulatorUrl(identity.identityId, codeApp.authenticatorId, baseUrl);
-    exec(`echo -n "${url}" | pbcopy`);
-    console.log("Simulator URL copied to clipboard");
+    if (copyToClipboard(url)) {
+      console.log("Simulator URL copied to clipboard");
+    } else {
+      console.log(url);
+    }
   },
 });
 
@@ -247,6 +270,35 @@ const listCmd = defineCommand({
       console.log(`  ${pad(u.alias, 14)} ${pad(u.name, 20)} ${pad(u.username, 14)} ${pad(u.note ?? "", 30)}`);
     }
     console.log();
+  },
+});
+
+const exportCmd = defineCommand({
+  meta: { name: "export", description: "Export saved identities as JSON (pipe-friendly)" },
+  args: {},
+  run() {
+    console.log(exportUsers());
+  },
+});
+
+const importCmd = defineCommand({
+  meta: { name: "import", description: "Import saved identities from a JSON file" },
+  args: {
+    file: {
+      type: "positional",
+      description: "Path to JSON file (or - for stdin)",
+      required: true,
+    },
+  },
+  run({ args }) {
+    let json: string;
+    if (args.file === "-") {
+      json = readFileSync(0, "utf-8"); // stdin
+    } else {
+      json = readFileSync(args.file, "utf-8");
+    }
+    const count = importUsers(json);
+    console.log(`Imported ${count} identit${count === 1 ? "y" : "ies"}`);
   },
 });
 
@@ -408,6 +460,8 @@ const main = defineCommand({
     json: jsonCmd,
     save: saveCmd,
     list: listCmd,
+    export: exportCmd,
+    import: importCmd,
     remove: removeCmd,
     providers: providersCmd,
     guide: guideCmd,
