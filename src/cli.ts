@@ -1,61 +1,89 @@
 #!/usr/bin/env node
 
+import { execFileSync, spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineCommand, runMain } from "citty";
-import { exec } from "child_process";
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
 import { resolve, simulatorUrl } from "./identity.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-8")) as { version: string };
-import { approve, watch } from "./simulator.js";
-import { login } from "./login.js";
-import { listProviders } from "./providers.js";
-import {
-  loadUsers,
-  findByAlias,
-  addOrUpdate,
-  removeByAlias,
-} from "./storage.js";
+const pkg = JSON.parse(
+	readFileSync(join(__dirname, "..", "package.json"), "utf-8"),
+) as { version: string };
+
 import type { SavedIdentity } from "./index.js";
+import { login } from "./login.js";
+import { approve, watch } from "./simulator.js";
+import {
+	addOrUpdate,
+	exportUsers,
+	findByAlias,
+	importUsers,
+	loadUsers,
+	removeByAlias,
+} from "./storage.js";
 
 const DEFAULT_BASE_URL = "https://pp.mitid.dk";
 
+function copyToClipboard(text: string): boolean {
+	try {
+		spawnSync("pbcopy", { input: text, stdio: ["pipe", "ignore", "ignore"] });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function openUrl(url: string): void {
+	try {
+		execFileSync("open", [url], { stdio: "ignore" });
+	} catch {
+		console.log(`Could not open browser. URL: ${url}`);
+	}
+}
+
 function getBaseUrl(env?: string): string {
-  return env === "prod" ? "https://www.mitid.dk" : DEFAULT_BASE_URL;
+	return env === "prod" ? "https://www.mitid.dk" : DEFAULT_BASE_URL;
 }
 
 function resolveQuery(query: string): string {
-  const match = findByAlias(query);
-  return match ? match.username : query;
+	const match = findByAlias(query);
+	return match ? match.username : query;
 }
 
 const envArg = {
-  type: "string" as const,
-  description: "Environment: 'prod' for www.mitid.dk, default is pp.mitid.dk (pre-production)",
-  default: "pp",
+	type: "string" as const,
+	description:
+		"Environment: 'prod' for www.mitid.dk, default is pp.mitid.dk (pre-production)",
+	default: "pp",
 };
 
 const queryArg = {
-  type: "positional" as const,
-  description: "Username, UUID, CPR, or saved alias",
-  required: true as const,
+	type: "positional" as const,
+	description: "Username, UUID, CPR, or saved alias",
+	required: true as const,
 };
 
 // --- Subcommands ---
 
 const infoCmd = defineCommand({
-  meta: { name: "info", description: "Show identity details from the MitID test environment" },
-  args: {
-    query: queryArg,
-    env: envArg,
-  },
-  async run({ args }) {
-    const baseUrl = getBaseUrl(args.env);
-    const { identity: i, codeApp } = await resolve(resolveQuery(args.query), baseUrl);
+	meta: {
+		name: "info",
+		description: "Show identity details from the MitID test environment",
+	},
+	args: {
+		query: queryArg,
+		env: envArg,
+	},
+	async run({ args }) {
+		const baseUrl = getBaseUrl(args.env);
+		const { identity: i, codeApp } = await resolve(
+			resolveQuery(args.query),
+			baseUrl,
+		);
 
-    console.log(`
+		console.log(`
   MitID Test Identity
   ===================
   Name:       ${i.identityName}
@@ -66,8 +94,8 @@ const infoCmd = defineCommand({
   IAL:        ${i.ial}
   Email:      ${i.attributes?.email ?? "N/A"}`);
 
-    if (codeApp) {
-      console.log(`
+		if (codeApp) {
+			console.log(`
   Code App
   --------
   Auth ID:    ${codeApp.authenticatorId}
@@ -75,201 +103,303 @@ const infoCmd = defineCommand({
   Last auth:  ${codeApp.lastSuccessTime ?? "never"}
 
   Simulator:  ${simulatorUrl(i.identityId, codeApp.authenticatorId, baseUrl)}`);
-    } else {
-      console.log("\n  No code app authenticator registered.");
-    }
-    console.log();
-  },
+		} else {
+			console.log("\n  No code app authenticator registered.");
+		}
+		console.log();
+	},
 });
 
 const approveCmd = defineCommand({
-  meta: { name: "approve", description: "Poll and auto-approve a pending MitID login via the simulator" },
-  args: {
-    query: queryArg,
-    watch: {
-      type: "boolean",
-      description: "Keep running and approve every incoming transaction",
-      alias: ["w"],
-      default: false,
-    },
-    env: envArg,
-  },
-  async run({ args }) {
-    const baseUrl = getBaseUrl(args.env);
-    const { identity, codeApp } = await resolve(resolveQuery(args.query), baseUrl);
-    if (!codeApp) throw new Error("No code app authenticator found");
+	meta: {
+		name: "approve",
+		description:
+			"Poll and auto-approve a pending MitID login via the simulator",
+	},
+	args: {
+		query: queryArg,
+		watch: {
+			type: "boolean",
+			description: "Keep running and approve every incoming transaction",
+			alias: ["w"],
+			default: false,
+		},
+		env: envArg,
+	},
+	async run({ args }) {
+		const baseUrl = getBaseUrl(args.env);
+		const { identity, codeApp } = await resolve(
+			resolveQuery(args.query),
+			baseUrl,
+		);
+		if (!codeApp) throw new Error("No code app authenticator found");
 
-    console.log(`  User: ${identity.userId} (${identity.identityName})`);
-    console.log(`  Auth: ${codeApp.authenticatorId}\n`);
+		console.log(`  User: ${identity.userId} (${identity.identityName})`);
+		console.log(`  Auth: ${codeApp.authenticatorId}\n`);
 
-    if (args.watch) {
-      await watch(identity.identityId, codeApp.authenticatorId, baseUrl);
-    } else {
-      await approve(identity.identityId, codeApp.authenticatorId, baseUrl);
-    }
-  },
+		if (args.watch) {
+			await watch(identity.identityId, codeApp.authenticatorId, baseUrl);
+		} else {
+			await approve(identity.identityId, codeApp.authenticatorId, baseUrl);
+		}
+	},
 });
 
 const loginCmd = defineCommand({
-  meta: { name: "login", description: "Complete a full MitID login and output session cookies" },
-  args: {
-    query: queryArg,
-    url: {
-      type: "positional",
-      description: "Service login URL that triggers a MitID authentication flow",
-      required: true,
-    },
-    env: envArg,
-  },
-  async run({ args }) {
-    const serviceUrl = args.url;
+	meta: {
+		name: "login",
+		description: "Complete a full MitID login and output session cookies",
+	},
+	args: {
+		query: queryArg,
+		url: {
+			type: "positional",
+			description:
+				"Service login URL that triggers a MitID authentication flow",
+			required: true,
+		},
+		env: envArg,
+	},
+	async run({ args }) {
+		const serviceUrl = args.url;
 
-    console.log(`Logging in as ${args.query} to ${new URL(serviceUrl).hostname}...`);
-    console.log(`Run 'mitid approve ${args.query}' in another terminal to auto-approve.\n`);
+		console.log(
+			`Logging in as ${args.query} to ${new URL(serviceUrl).hostname}...`,
+		);
+		console.log(
+			`Run 'mitid approve ${args.query}' in another terminal to auto-approve.\n`,
+		);
 
-    const result = await login(resolveQuery(args.query), serviceUrl, console.log);
+		const result = await login(
+			resolveQuery(args.query),
+			serviceUrl,
+			console.log,
+		);
 
-    if (result.cookies) {
-      console.log("\nSession cookies:");
-      for (const [k, v] of Object.entries(result.cookies)) {
-        if (v) console.log(`  ${k}=${v.substring(0, 50)}...`);
-      }
-      const cookieStr = Object.entries(result.cookies)
-        .filter(([, v]) => v)
-        .map(([k, v]) => `${k}=${v}`)
-        .join("; ");
-      exec(`echo -n ${JSON.stringify(cookieStr)} | pbcopy`);
-      console.log("\nCookies copied to clipboard");
-    }
-  },
+		if (result.cookies) {
+			console.log("\nSession cookies:");
+			for (const [k, v] of Object.entries(result.cookies)) {
+				if (v) console.log(`  ${k}=${v.substring(0, 50)}...`);
+			}
+			const cookieStr = Object.entries(result.cookies)
+				.filter(([, v]) => v)
+				.map(([k, v]) => `${k}=${v}`)
+				.join("; ");
+			if (copyToClipboard(cookieStr)) {
+				console.log("\nCookies copied to clipboard");
+			}
+		}
+	},
 });
 
 const openCmd = defineCommand({
-  meta: { name: "open", description: "Open the code-app simulator in the default browser" },
-  args: {
-    query: queryArg,
-    env: envArg,
-  },
-  async run({ args }) {
-    const baseUrl = getBaseUrl(args.env);
-    const { identity, codeApp } = await resolve(resolveQuery(args.query), baseUrl);
-    if (!codeApp) throw new Error("No code app authenticator found");
+	meta: {
+		name: "open",
+		description: "Open the code-app simulator in the default browser",
+	},
+	args: {
+		query: queryArg,
+		env: envArg,
+	},
+	async run({ args }) {
+		const baseUrl = getBaseUrl(args.env);
+		const { identity, codeApp } = await resolve(
+			resolveQuery(args.query),
+			baseUrl,
+		);
+		if (!codeApp) throw new Error("No code app authenticator found");
 
-    const url = simulatorUrl(identity.identityId, codeApp.authenticatorId, baseUrl);
-    console.log(`Opening simulator for ${identity.identityName}...`);
-    exec(`open "${url}"`);
-  },
+		const url = simulatorUrl(
+			identity.identityId,
+			codeApp.authenticatorId,
+			baseUrl,
+		);
+		console.log(`Opening simulator for ${identity.identityName}...`);
+		openUrl(url);
+	},
 });
 
 const copyCmd = defineCommand({
-  meta: { name: "copy", description: "Copy the simulator URL to the clipboard" },
-  args: {
-    query: queryArg,
-    env: envArg,
-  },
-  async run({ args }) {
-    const baseUrl = getBaseUrl(args.env);
-    const { identity, codeApp } = await resolve(resolveQuery(args.query), baseUrl);
-    if (!codeApp) throw new Error("No code app authenticator found");
+	meta: {
+		name: "copy",
+		description: "Copy the simulator URL to the clipboard",
+	},
+	args: {
+		query: queryArg,
+		env: envArg,
+	},
+	async run({ args }) {
+		const baseUrl = getBaseUrl(args.env);
+		const { identity, codeApp } = await resolve(
+			resolveQuery(args.query),
+			baseUrl,
+		);
+		if (!codeApp) throw new Error("No code app authenticator found");
 
-    const url = simulatorUrl(identity.identityId, codeApp.authenticatorId, baseUrl);
-    exec(`echo -n "${url}" | pbcopy`);
-    console.log("Simulator URL copied to clipboard");
-  },
+		const url = simulatorUrl(
+			identity.identityId,
+			codeApp.authenticatorId,
+			baseUrl,
+		);
+		if (copyToClipboard(url)) {
+			console.log("Simulator URL copied to clipboard");
+		} else {
+			console.log(url);
+		}
+	},
 });
 
 const jsonCmd = defineCommand({
-  meta: { name: "json", description: "Output full identity data as JSON" },
-  args: {
-    query: queryArg,
-    env: envArg,
-  },
-  async run({ args }) {
-    const baseUrl = getBaseUrl(args.env);
-    const { identity, codeApp } = await resolve(resolveQuery(args.query), baseUrl);
-    const url = codeApp ? simulatorUrl(identity.identityId, codeApp.authenticatorId, baseUrl) : null;
-    console.log(JSON.stringify({ identity, codeApp, simulatorUrl: url }, null, 2));
-  },
+	meta: { name: "json", description: "Output full identity data as JSON" },
+	args: {
+		query: queryArg,
+		env: envArg,
+	},
+	async run({ args }) {
+		const baseUrl = getBaseUrl(args.env);
+		const { identity, codeApp } = await resolve(
+			resolveQuery(args.query),
+			baseUrl,
+		);
+		const url = codeApp
+			? simulatorUrl(identity.identityId, codeApp.authenticatorId, baseUrl)
+			: null;
+		console.log(
+			JSON.stringify({ identity, codeApp, simulatorUrl: url }, null, 2),
+		);
+	},
 });
 
 const saveCmd = defineCommand({
-  meta: { name: "save", description: "Save an identity for quick access by alias" },
-  args: {
-    query: queryArg,
-    alias: {
-      type: "positional",
-      description: "Short alias for this identity (default: username)",
-      required: false,
-    },
-    note: {
-      type: "string",
-      description: "A note to attach to this identity (e.g. 'has 3 addresses', 'expired CPR')",
-    },
-    env: envArg,
-  },
-  async run({ args }) {
-    const baseUrl = getBaseUrl(args.env);
-    const { identity, codeApp } = await resolve(resolveQuery(args.query), baseUrl);
+	meta: {
+		name: "save",
+		description: "Save an identity for quick access by alias",
+	},
+	args: {
+		query: queryArg,
+		alias: {
+			type: "positional",
+			description: "Short alias for this identity (default: username)",
+			required: false,
+		},
+		note: {
+			type: "string",
+			description:
+				"A note to attach to this identity (e.g. 'has 3 addresses', 'expired CPR')",
+		},
+		env: envArg,
+	},
+	async run({ args }) {
+		const baseUrl = getBaseUrl(args.env);
+		const { identity, codeApp } = await resolve(
+			resolveQuery(args.query),
+			baseUrl,
+		);
 
-    const entry: SavedIdentity = {
-      alias: args.alias ?? identity.userId,
-      username: identity.userId,
-      name: identity.identityName,
-      uuid: identity.identityId,
-      cpr: identity.cprNumber,
-      authId: codeApp?.authenticatorId ?? null,
-      note: args.note ?? null,
-      savedAt: new Date().toISOString(),
-    };
+		const entry: SavedIdentity = {
+			alias: args.alias ?? identity.userId,
+			username: identity.userId,
+			name: identity.identityName,
+			uuid: identity.identityId,
+			cpr: identity.cprNumber,
+			authId: codeApp?.authenticatorId ?? null,
+			note: args.note ?? null,
+			savedAt: new Date().toISOString(),
+		};
 
-    addOrUpdate(entry);
-    console.log(`Saved: ${entry.alias} (${entry.name})${entry.note ? ` - ${entry.note}` : ""}`);
-  },
+		addOrUpdate(entry);
+		console.log(
+			`Saved: ${entry.alias} (${entry.name})${entry.note ? ` - ${entry.note}` : ""}`,
+		);
+	},
 });
 
 const listCmd = defineCommand({
-  meta: { name: "list", description: "Show all saved MitID test identities" },
-  args: {},
-  run() {
-    const users = loadUsers();
-    if (!users.length) {
-      console.log("No saved identities. Use: mitid save <query> [alias]");
-      return;
-    }
+	meta: { name: "list", description: "Show all saved MitID test identities" },
+	args: {},
+	run() {
+		const users = loadUsers();
+		if (!users.length) {
+			console.log("No saved identities. Use: mitid save <query> [alias]");
+			return;
+		}
 
-    const pad = (s: string | null | undefined, n: number) => (s ?? "").padEnd(n);
-    console.log("\n  Saved MitID Test Identities");
-    console.log("  " + "=".repeat(80));
-    console.log(`  ${pad("Alias", 14)} ${pad("Name", 20)} ${pad("Username", 14)} ${pad("Note", 30)}`);
-    console.log("  " + "-".repeat(80));
+		const pad = (s: string | null | undefined, n: number) =>
+			(s ?? "").padEnd(n);
+		console.log("\n  Saved MitID Test Identities");
+		console.log(`  ${"=".repeat(80)}`);
+		console.log(
+			`  ${pad("Alias", 14)} ${pad("Name", 20)} ${pad("Username", 14)} ${pad("Note", 30)}`,
+		);
+		console.log(`  ${"-".repeat(80)}`);
 
-    for (const u of users) {
-      console.log(`  ${pad(u.alias, 14)} ${pad(u.name, 20)} ${pad(u.username, 14)} ${pad(u.note ?? "", 30)}`);
-    }
-    console.log();
-  },
+		for (const u of users) {
+			console.log(
+				`  ${pad(u.alias, 14)} ${pad(u.name, 20)} ${pad(u.username, 14)} ${pad(u.note ?? "", 30)}`,
+			);
+		}
+		console.log();
+	},
+});
+
+const exportCmd = defineCommand({
+	meta: {
+		name: "export",
+		description: "Export saved identities as JSON (pipe-friendly)",
+	},
+	args: {},
+	run() {
+		console.log(exportUsers());
+	},
+});
+
+const importCmd = defineCommand({
+	meta: {
+		name: "import",
+		description: "Import saved identities from a JSON file",
+	},
+	args: {
+		file: {
+			type: "positional",
+			description: "Path to JSON file (or - for stdin)",
+			required: true,
+		},
+	},
+	run({ args }) {
+		let json: string;
+		if (args.file === "-") {
+			json = readFileSync(0, "utf-8"); // stdin
+		} else {
+			json = readFileSync(args.file, "utf-8");
+		}
+		const count = importUsers(json);
+		console.log(`Imported ${count} identit${count === 1 ? "y" : "ies"}`);
+	},
 });
 
 const removeCmd = defineCommand({
-  meta: { name: "remove", description: "Remove a saved identity by alias" },
-  args: {
-    alias: {
-      type: "positional",
-      description: "Alias or username to remove",
-      required: true,
-    },
-  },
-  run({ args }) {
-    const removed = removeByAlias(args.alias);
-    console.log(`Removed: ${removed.alias} (${removed.name})`);
-  },
+	meta: { name: "remove", description: "Remove a saved identity by alias" },
+	args: {
+		alias: {
+			type: "positional",
+			description: "Alias or username to remove",
+			required: true,
+		},
+	},
+	run({ args }) {
+		const removed = removeByAlias(args.alias);
+		console.log(`Removed: ${removed.alias} (${removed.name})`);
+	},
 });
 
 const guideCmd = defineCommand({
-  meta: { name: "guide", description: "Show usage guide for humans and AI agents" },
-  args: {},
-  run() {
-    console.log(`
+	meta: {
+		name: "guide",
+		description: "Show usage guide for humans and AI agents",
+	},
+	args: {},
+	run() {
+		console.log(`
 mitid — MitID Test Login Tool
 ==============================
 
@@ -364,16 +494,19 @@ HOW IT WORKS
     → Session cookies
 
 `);
-  },
+	},
 });
 
 const providersCmd = defineCommand({
-  meta: { name: "providers", description: "List supported MitID broker providers" },
-  args: {},
-  run() {
-    console.log("\n  Supported MitID Providers");
-    console.log("  " + "=".repeat(60));
-    console.log(`
+	meta: {
+		name: "providers",
+		description: "List supported MitID broker providers",
+	},
+	args: {},
+	run() {
+		console.log("\n  Supported MitID Providers");
+		console.log(`  ${"=".repeat(60)}`);
+		console.log(`
   Criipto         Auto-detected via *.idura.broker or criipto.* URLs.
                   Used by services integrated through Criipto Verify.
 
@@ -388,30 +521,33 @@ const providersCmd = defineCommand({
   If your service uses a different broker, you can add a custom
   provider: https://github.com/Saturate/mitid-cli#adding-a-provider
 `);
-  },
+	},
 });
 
 // --- Main ---
 
 const main = defineCommand({
-  meta: {
-    name: "mitid",
-    version: pkg.version,
-    description: "CLI for Denmark's MitID test environment — identity lookup, auto-approve logins, and full browserless authentication",
-  },
-  subCommands: {
-    info: infoCmd,
-    approve: approveCmd,
-    login: loginCmd,
-    open: openCmd,
-    copy: copyCmd,
-    json: jsonCmd,
-    save: saveCmd,
-    list: listCmd,
-    remove: removeCmd,
-    providers: providersCmd,
-    guide: guideCmd,
-  },
+	meta: {
+		name: "mitid",
+		version: pkg.version,
+		description:
+			"CLI for Denmark's MitID test environment — identity lookup, auto-approve logins, and full browserless authentication",
+	},
+	subCommands: {
+		info: infoCmd,
+		approve: approveCmd,
+		login: loginCmd,
+		open: openCmd,
+		copy: copyCmd,
+		json: jsonCmd,
+		save: saveCmd,
+		list: listCmd,
+		export: exportCmd,
+		import: importCmd,
+		remove: removeCmd,
+		providers: providersCmd,
+		guide: guideCmd,
+	},
 });
 
 runMain(main);

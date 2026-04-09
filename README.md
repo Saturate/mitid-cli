@@ -96,15 +96,31 @@ Prints detailed workflow instructions for all use cases including library usage.
 | `mitid info <query>` | Show identity details (username, UUID, CPR, authenticators) |
 | `mitid login <query> <url>` | Complete a full MitID login and output session cookies |
 | `mitid approve <query>` | Poll and auto-approve a pending MitID login via the simulator. Use `--watch` to keep approving |
-| `mitid save <query> [alias]` | Save an identity for quick access |
+| `mitid save <query> [alias]` | Save an identity for quick access. Use `--note` to annotate |
 | `mitid list` | Show all saved identities |
+| `mitid export` | Export saved identities as JSON (pipe-friendly) |
+| `mitid import <file>` | Import identities from a JSON file (or `-` for stdin) |
 | `mitid remove <alias>` | Remove a saved identity |
 | `mitid open <query>` | Open the simulator in the default browser |
 | `mitid copy <query>` | Copy the simulator URL to clipboard |
 | `mitid json <query>` | Output full identity data as JSON |
+| `mitid providers` | List supported MitID broker providers |
 | `mitid guide` | Show detailed usage guide |
 
 Query can be a MitID username, UUID, CPR number, or a saved alias.
+
+### Sharing identities with your team
+
+```bash
+# Export your saved identities
+mitid export > identities.json
+
+# A colleague imports them
+mitid import identities.json
+
+# Or pipe directly
+mitid export | ssh colleague "mitid import -"
+```
 
 ## Library usage
 
