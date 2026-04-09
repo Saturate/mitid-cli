@@ -157,6 +157,59 @@ Service login URL
   → Service callback → Session cookies
 ```
 
+## Supported providers
+
+The login flow auto-detects your MitID broker from the OAuth redirect chain:
+
+| Provider | Detection | Used by |
+|----------|-----------|---------|
+| **Criipto** | `*.idura.broker` or `criipto.*` URLs | Services using Criipto Verify |
+| **NemLog-in** | `nemlog-in.mitid.dk` | Danish public services (borger.dk, skat.dk, e-boks, etc.) |
+| **Direct MitID** | `mitid.dk/administration` | mitid.dk self-service portal |
+
+```bash
+mitid providers   # list all supported providers
+```
+
+### Adding a provider
+
+If your service uses a broker not listed above, you can add a custom provider. A provider needs two things:
+
+1. **`detect`** - identify the broker from the URL/HTML after OAuth redirects
+2. **`bootstrap`** - extract the MitID `aux` (session ID + checksum) and return an exchange callback
+
+```typescript
+import { login } from '@saturate/mitid';
+import type { Provider, CookieJar } from '@saturate/mitid';
+
+const myProvider: Provider = {
+  name: 'MyBroker',
+
+  detect: (url, body) => url.includes('my-broker.example.com'),
+
+  async bootstrap(url, body, cookies) {
+    // Extract aux from your broker's page (HTML scraping, JSON endpoint, etc.)
+    const aux = /* ... */;
+
+    return {
+      clientHash: Buffer.from(aux.coreClient.checksum, 'base64').toString('hex'),
+      authenticationSessionId: aux.parameters.authenticationSessionId,
+      apiBaseUrl: 'https://pp.mitid.dk', // or extract from aux.parameters.apiUrl
+      cookies,
+      exchange: async (authCode: string, cookies: CookieJar) => {
+        // Return the URL to redirect to with the auth code
+        return { redirectUrl: `https://my-broker.example.com/callback?code=${authCode}` };
+      },
+    };
+  },
+};
+
+// Use it
+const result = await login('username', 'https://my-service.com/login', console.log, myProvider);
+```
+
+PRs adding new providers to `src/providers.ts` are welcome.
+
 ## Requirements
 
 - Node.js 18+

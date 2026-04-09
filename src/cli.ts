@@ -5,6 +5,7 @@ import { exec } from "child_process";
 import { resolve, simulatorUrl } from "./identity.js";
 import { approve, watch } from "./simulator.js";
 import { login } from "./login.js";
+import { listProviders } from "./providers.js";
 import {
   loadUsers,
   findByAlias,
@@ -360,6 +361,30 @@ HOW IT WORKS
   },
 });
 
+const providersCmd = defineCommand({
+  meta: { name: "providers", description: "List supported MitID broker providers" },
+  args: {},
+  run() {
+    console.log("\n  Supported MitID Providers");
+    console.log("  " + "=".repeat(60));
+    console.log(`
+  Criipto         Auto-detected via *.idura.broker or criipto.* URLs.
+                  Used by services integrated through Criipto Verify.
+
+  NemLog-in       Auto-detected via nemlog-in.mitid.dk.
+                  Used by Danish public services (borger.dk, skat.dk,
+                  e-boks, mit.dk, etc.)
+
+  Direct MitID    Auto-detected via mitid.dk/administration URLs.
+                  Used by mitid.dk self-service portal.
+
+  The provider is auto-detected from the OAuth redirect chain.
+  If your service uses a different broker, you can add a custom
+  provider: https://github.com/Saturate/mitid-cli#adding-a-provider
+`);
+  },
+});
+
 // --- Main ---
 
 const main = defineCommand({
@@ -378,6 +403,7 @@ const main = defineCommand({
     save: saveCmd,
     list: listCmd,
     remove: removeCmd,
+    providers: providersCmd,
     guide: guideCmd,
   },
 });

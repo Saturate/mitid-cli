@@ -1,54 +1,28 @@
-// MitID login flow orchestration (OAuth redirects, Criipto bootstrap, cookie extraction)
-// Ported from https://github.com/Hundter/MitID-BrowserClient
+// MitID login flow orchestration
+// Auto-detects the broker/provider and handles the full OAuth → MitID → session flow
 import { MitIDClient } from "./client.js";
+import { detectProvider, listProviders } from "./providers.js";
+import type { CookieJar, Provider } from "./providers.js";
 
 export type LoginStatusCallback = (message: string) => void;
 
-interface CookieJar {
-  [key: string]: string;
+export interface LoginResult {
+  cookies: CookieJar;
+  finalUrl: string;
+  provider: string;
 }
 
 interface RedirectResult {
   finalUrl: string;
   body: string;
   cookies: CookieJar;
-  visited: Array<{ url: string; status: number }>;
   status: number;
 }
 
-interface BootstrapData {
-  screen?: {
-    rendition?: {
-      coreClientScriptSource?: string;
-      cancelUrl?: string;
-    };
-  };
-}
-
-interface CoreClientData {
-  CoreClientAux: string;
-  CallbackEndpoint: string;
-  ExchangeEndpoint: string;
-}
-
-interface CoreClientAux {
-  coreClient: { checksum: string };
-  parameters: {
-    authenticationSessionId: string;
-    apiUrl: string;
-  };
-}
-
-export interface LoginResult {
-  cookies: CookieJar;
-  finalUrl: string;
-}
-
-async function followRedirects(
+export async function followRedirects(
   url: string,
   cookies: CookieJar = {},
 ): Promise<RedirectResult> {
-  const visited: Array<{ url: string; status: number }> = [];
   let currentUrl = url;
 
   for (let i = 0; i < 15; i++) {
@@ -77,8 +51,6 @@ async function followRedirects(
       }
     }
 
-    visited.push({ url: currentUrl, status: resp.status });
-
     if (resp.status >= 300 && resp.status < 400) {
       const location = resp.headers.get("location");
       if (!location) throw new Error("Redirect without location header");
@@ -95,7 +67,6 @@ async function followRedirects(
       finalUrl: currentUrl,
       body: await resp.text(),
       cookies,
-      visited,
       status: resp.status,
     };
   }
@@ -107,79 +78,57 @@ export async function login(
   username: string,
   serviceLoginUrl: string,
   onStatus?: LoginStatusCallback,
+  providerOverride?: Provider,
 ): Promise<LoginResult> {
   const log = onStatus ?? console.log;
 
-  // Step 1: Follow redirects from service login to Criipto broker
+  // Step 1: Follow OAuth redirects to the broker page
   log("Following OAuth redirects...");
   const { finalUrl, body, cookies } = await followRedirects(serviceLoginUrl);
 
-  // Step 2: Extract the CoreClient URL from the broker page
-  const bootstrapMatch = body.match(/data-bootstrap="([^"]+)"/);
-  if (!bootstrapMatch)
-    throw new Error("Could not find bootstrap data in broker page");
+  // Step 2: Detect or use the specified provider
+  const provider = providerOverride ?? detectProvider(finalUrl, body);
+  if (!provider) {
+    throw new Error(
+      `Could not detect MitID provider from ${new URL(finalUrl).hostname}. ` +
+      `Supported providers: ${listProviders().join(", ")}. ` +
+      `If your service uses a different broker, see: https://github.com/Saturate/mitid-cli#adding-a-provider`,
+    );
+  }
 
-  const bootstrapData = JSON.parse(
-    bootstrapMatch[1]!.replace(/&quot;/g, '"').replace(/&amp;/g, "&"),
-  ) as BootstrapData;
-  const coreClientUrl =
-    bootstrapData.screen?.rendition?.coreClientScriptSource;
+  log(`Detected provider: ${provider.name}`);
 
-  if (!coreClientUrl) throw new Error("Could not find CoreClient URL");
-
-  // Step 3: Fetch CoreClient JSON to get aux
+  // Step 3: Bootstrap the MitID session via the provider
   log("Fetching MitID session...");
-  const ccResp = await fetch(coreClientUrl, {
-    headers: {
-      Accept: "application/json",
-      Origin: new URL(finalUrl).origin,
-      Referer: finalUrl,
-    },
-  });
-  if (!ccResp.ok)
-    throw new Error(`CoreClient fetch failed: ${ccResp.status}`);
+  const session = await provider.bootstrap(finalUrl, body, cookies);
+  log(`Session: ${session.authenticationSessionId}`);
 
-  const ccData = (await ccResp.json()) as CoreClientData;
-  const aux = JSON.parse(
-    Buffer.from(ccData.CoreClientAux, "base64").toString("utf-8"),
-  ) as CoreClientAux;
-  const callbackUrl = ccData.CallbackEndpoint;
-
-  const clientHash = Buffer.from(aux.coreClient.checksum, "base64").toString(
-    "hex",
-  );
-  const authSessionId = aux.parameters.authenticationSessionId;
-  const apiBaseUrl = aux.parameters.apiUrl.replace(
-    /\/mitid-core-client-backend\/v1\/$/,
-    "",
-  );
-
-  log(`Session: ${authSessionId}`);
-
-  // Step 4: Run MitID BrowserClient auth
-  const client = new MitIDClient({ baseUrl: apiBaseUrl });
-  Object.assign(client.cookies, cookies);
-  await client.init(clientHash, authSessionId);
+  // Step 4: Authenticate with MitID
+  const client = new MitIDClient({ baseUrl: session.apiBaseUrl });
+  Object.assign(client.cookies, session.cookies);
+  await client.init(session.clientHash, session.authenticationSessionId);
 
   const authenticators = await client.identifyAndGetAuthenticators(username);
   log(`Available authenticators: ${Object.keys(authenticators).join(", ")}`);
 
-  if (!authenticators["APP"])
+  if (!authenticators["APP"]) {
     throw new Error("APP authenticator not available for this user");
+  }
 
   await client.authenticateWithApp(log);
   const authCode = await client.finalize();
   log(`Auth code: ${authCode.substring(0, 8)}...`);
 
-  // Step 5: Exchange auth code via Criipto callback
+  // Step 5: Exchange auth code via the provider's callback
   log("Exchanging auth code...");
-  const cbUrl = new URL(callbackUrl);
-  cbUrl.searchParams.set("code", authCode);
+  const { redirectUrl } = await session.exchange(authCode, cookies);
 
-  const final = await followRedirects(cbUrl.href, cookies);
+  const final = await followRedirects(redirectUrl, cookies);
   log("Login complete!");
+
   return {
     cookies: final.cookies,
     finalUrl: final.finalUrl,
+    provider: provider.name,
   };
 }

@@ -6,6 +6,8 @@ export { login } from "./login.js";
 export type { LoginResult, LoginStatusCallback } from "./login.js";
 export { approve, watch } from "./simulator.js";
 export type { SimulatorStatusCallback } from "./simulator.js";
+export { detectProvider, getProvider, listProviders } from "./providers.js";
+export type { Provider, ProviderSession, CookieJar } from "./providers.js";
 export {
   searchIdentity,
   resolve,
