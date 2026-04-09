@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.1.0] - 2026-04-09
+## [0.2.0] - 2026-04-09
 
 ### Features
 
@@ -32,5 +32,7 @@ All notable changes to this project will be documented in this file.
 - Add biome linting, fix changelog push, format codebase by @Saturate ([60de24c](https://github.com/Saturate/mitid-cli/commit/60de24c6715fa2d9b2858416531d7e532c3b8e0d))
 
 - Revert changelog push workaround, now using rulesets with app bypass by @Saturate ([c2a1aeb](https://github.com/Saturate/mitid-cli/commit/c2a1aeb36c70e1fcd42f6d4f5fcb7310179429d6))
+
+- Fix release workflow - remove broken npm upgrade, use Node 24 by @Saturate ([5a4b68a](https://github.com/Saturate/mitid-cli/commit/5a4b68acc8ddf699ad978129a1f8930d17f93d21))
 
 
