@@ -11,13 +11,13 @@ This tool sidesteps the widget entirely by implementing the MitID authentication
 ## Install
 
 ```bash
-npm install -g mitid
+npm install -g @saturate/mitid
 ```
 
 Or use directly with npx:
 
 ```bash
-npx mitid --help
+npx @saturate/mitid --help
 ```
 
 ## Quick start
@@ -109,7 +109,7 @@ Query can be a MitID username, UUID, CPR number, or a saved alias.
 ## Library usage
 
 ```typescript
-import { MitIDClient, login, approve, resolve } from 'mitid';
+import { MitIDClient, login, approve, resolve } from '@saturate/mitid';
 
 // Look up a test identity
 const { identity, codeApp } = await resolve('TestUser123');

@@ -1,6 +1,6 @@
 {
-  "name": "mitid",
-  "version": "0.1.0",
+  "name": "@saturate/mitid",
+  "version": "0.1.1",
   "description": "CLI and library for authenticating with Denmark's MitID identity system",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,7 +12,7 @@
     }
   },
   "bin": {
-    "mitid": "./dist/cli.js"
+    "mitid": "dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
@@ -31,7 +31,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Saturate/mitid-cli"
+    "url": "git+https://github.com/Saturate/mitid-cli.git"
   },
   "license": "MIT",
   "engines": {
