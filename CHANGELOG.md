@@ -35,4 +35,6 @@ All notable changes to this project will be documented in this file.
 
 - Fix release workflow - remove broken npm upgrade, use Node 24 by @Saturate ([5a4b68a](https://github.com/Saturate/mitid-cli/commit/5a4b68acc8ddf699ad978129a1f8930d17f93d21))
 
+- Fix prepare-release race with changelog bot by @Saturate ([b0c2df1](https://github.com/Saturate/mitid-cli/commit/b0c2df1690d7dbf9ec5e46c75ee0cee65e707328))
+
 
