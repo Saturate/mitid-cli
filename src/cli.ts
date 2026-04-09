@@ -2,7 +2,13 @@
 
 import { defineCommand, runMain } from "citty";
 import { exec } from "child_process";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import { resolve, simulatorUrl } from "./identity.js";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf-8")) as { version: string };
 import { approve, watch } from "./simulator.js";
 import { login } from "./login.js";
 import { listProviders } from "./providers.js";
@@ -390,7 +396,7 @@ const providersCmd = defineCommand({
 const main = defineCommand({
   meta: {
     name: "mitid",
-    version: "0.1.0",
+    version: pkg.version,
     description: "CLI for Denmark's MitID test environment — identity lookup, auto-approve logins, and full browserless authentication",
   },
   subCommands: {
