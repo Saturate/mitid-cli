@@ -1,51 +1,54 @@
 {
-  "name": "@saturate/mitid",
-  "version": "0.1.1",
-  "description": "CLI and library for authenticating with Denmark's MitID identity system",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
-  "bin": {
-    "mitid": "dist/cli.js"
-  },
-  "scripts": {
-    "build": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "changelog": "git-cliff -o CHANGELOG.md",
-    "prepublishOnly": "pnpm run build"
-  },
-  "keywords": [
-    "mitid",
-    "denmark",
-    "authentication",
-    "identity",
-    "nemid",
-    "test",
-    "cli"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Saturate/mitid-cli.git"
-  },
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "devDependencies": {
-    "@types/node": "^25.5.2",
-    "git-cliff": "^2.12.0",
-    "typescript": "^5.7.0",
-    "vitest": "^4.1.4"
-  },
-  "dependencies": {
-    "citty": "^0.2.2"
-  },
-  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319"
+	"name": "@saturate/mitid",
+	"version": "0.1.1",
+	"description": "CLI and library for authenticating with Denmark's MitID identity system",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"bin": {
+		"mitid": "dist/cli.js"
+	},
+	"scripts": {
+		"build": "tsc",
+		"lint": "biome check",
+		"lint:fix": "biome check --write",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"changelog": "git-cliff -o CHANGELOG.md",
+		"prepublishOnly": "pnpm run build"
+	},
+	"keywords": [
+		"mitid",
+		"denmark",
+		"authentication",
+		"identity",
+		"nemid",
+		"test",
+		"cli"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Saturate/mitid-cli.git"
+	},
+	"license": "MIT",
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.10",
+		"@types/node": "^25.5.2",
+		"git-cliff": "^2.12.0",
+		"typescript": "^5.7.0",
+		"vitest": "^4.1.4"
+	},
+	"dependencies": {
+		"citty": "^0.2.2"
+	},
+	"packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319"
 }
