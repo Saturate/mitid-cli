@@ -1,0 +1,90 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "auto (default), major, minor, patch, or exact version (e.g. 1.2.3)"
+        required: false
+        default: "auto"
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Calculate version
+        id: version
+        env:
+          INPUT: ${{ github.event.inputs.version }}
+        run: |
+          case "$INPUT" in
+            auto)
+              VERSION=$(pnpm --silent git-cliff --bumped-version | sed 's/^v//')
+              ;;
+            major|minor|patch)
+              LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+              IFS='.' read -r MAJOR MINOR PATCH <<< "${LATEST_TAG#v}"
+              case "$INPUT" in
+                major) VERSION="$((MAJOR + 1)).0.0" ;;
+                minor) VERSION="$MAJOR.$((MINOR + 1)).0" ;;
+                patch) VERSION="$MAJOR.$MINOR.$((PATCH + 1))" ;;
+              esac
+              ;;
+            *)
+              VERSION="${INPUT#v}"
+              if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+                echo "::error::Invalid version format: $VERSION (expected semver like 1.2.3)"
+                exit 1
+              fi
+              ;;
+          esac
+
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag v$VERSION already exists"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$VERSION"
+
+      - name: Update changelog
+        run: pnpm git-cliff --tag "v${{ steps.version.outputs.version }}" -o CHANGELOG.md
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Bump package.json
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
+
+      - name: Commit, tag, and push
+        run: |
+          git config user.name "saturate-ci[bot]"
+          git config user.email "saturate-ci[bot]@users.noreply.github.com"
+          git add CHANGELOG.md package.json
+          git commit -m "chore(release): v${{ steps.version.outputs.version }}"
+          git tag -a "v${{ steps.version.outputs.version }}" -m "v${{ steps.version.outputs.version }}"
+          git push --follow-tags
