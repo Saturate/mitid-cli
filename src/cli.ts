@@ -190,12 +190,8 @@ const loginCmd = defineCommand({
 			provider: result.provider,
 			finalUrl: result.finalUrl,
 			cookies: result.cookies,
+			body: tryParseJson(result.body) ?? result.body,
 		};
-
-		const json = tryParseJson(result.body);
-		if (json) {
-			output.body = json;
-		}
 
 		console.log(JSON.stringify(output, null, 2));
 	},
