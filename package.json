@@ -14,6 +14,12 @@
 	"bin": {
 		"mitid": "dist/cli.js"
 	},
+	"files": [
+		"dist",
+		"README.md",
+		"CHANGELOG.md",
+		"LICENSE"
+	],
 	"scripts": {
 		"build": "tsc",
 		"lint": "biome check",
