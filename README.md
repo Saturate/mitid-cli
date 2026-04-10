@@ -113,8 +113,8 @@ Prints detailed workflow instructions for all use cases including library usage.
 | Command | Description |
 |---------|-------------|
 | `mitid info <query>` | Show identity details (username, UUID, CPR, authenticators) |
-| `mitid login <query> <url>` | Complete a full MitID login and output JSON (cookies, tokens, metadata) |
-| `mitid approve <query>` | Poll and auto-approve a pending MitID login via the simulator. Use `--watch` to keep approving |
+| `mitid login <query> <url>` | Login and auto-approve in one step. Outputs JSON. Use `--no-approve` to approve separately |
+| `mitid approve <query>` | Manually approve a pending MitID login via the simulator. Use `--watch` to keep approving |
 | `mitid save <query> [alias]` | Save an identity for quick access. Use `--note` to annotate |
 | `mitid list` | Show all saved identities |
 | `mitid export` | Export saved identities as JSON (pipe-friendly) |

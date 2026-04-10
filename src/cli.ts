@@ -164,7 +164,7 @@ const loginCmd = defineCommand({
 	meta: {
 		name: "login",
 		description:
-			"Complete a full MitID login and output JSON with cookies and tokens",
+			"Login with auto-approve and output JSON with cookies and tokens",
 	},
 	args: {
 		query: queryArg,
