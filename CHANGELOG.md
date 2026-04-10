@@ -12,6 +12,8 @@ All notable changes to this project will be documented in this file.
 
 - Output JSON from login, capture response body with tokens by @Saturate ([e698546](https://github.com/Saturate/mitid-cli/commit/e698546dc2c3db9427bc2ecef8540b98edb61abd))
 
+- Auto-approve during login by default by @Saturate ([12c8c02](https://github.com/Saturate/mitid-cli/commit/12c8c024a7dbcd75079833b15b0e1ed9af47c758))
+
 - Auto-register simulator code app when none exists by @Saturate ([ff80c01](https://github.com/Saturate/mitid-cli/commit/ff80c0111ccc43bad18242aa38af5311779d2909))
 
 
@@ -25,6 +27,8 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 
 - Explain aux in README and how it works section by @Saturate ([937a0e7](https://github.com/Saturate/mitid-cli/commit/937a0e7c8421d3254544e282e72d0e88f64d8b09))
+
+- Update command descriptions for auto-approve by @Saturate ([25664a4](https://github.com/Saturate/mitid-cli/commit/25664a4a6841370ec15a26b80ffd29e812c574bb))
 
 
 ### Styling
