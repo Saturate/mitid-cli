@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Miscellaneous
+
+- Bump dependencies by @Saturate ([bce1683](https://github.com/Saturate/mitid-cli/commit/bce1683839f01f58dd4f2fca7d5d0f29c8d1379d))
+
+
 ## [0.3.1] - 2026-04-10
 
 ### Miscellaneous
