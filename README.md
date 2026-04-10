@@ -51,7 +51,7 @@ When MitID asks you to approve in the app, the CLI does it automatically via the
 
 ### Fully automated login
 
-No browser needed. Gets session cookies you can use with curl, fetch, Playwright, etc:
+No browser needed. Outputs JSON to stdout with cookies, tokens, and metadata. Progress goes to stderr so piping works cleanly:
 
 ```bash
 # Terminal 1: start the login
@@ -61,16 +61,35 @@ mitid login myuser https://your-service.example.com/login/mitid
 mitid approve myuser
 ```
 
-The login command outputs session cookies and copies them to clipboard.
+Output is JSON:
+
+```json
+{
+  "provider": "Criipto",
+  "finalUrl": "https://your-service.example.com/callback",
+  "cookies": { "session": "abc123", "token": "eyJ..." },
+  "body": { "access_token": "eyJ...", "refresh_token": "..." }
+}
+```
+
+The `body` field is always present. Parsed as JSON when possible, raw string otherwise. Extract what you need with `jq`:
+
+```bash
+# Get an access token
+mitid login myuser <url> | jq -r '.body.access_token'
+
+# Get cookies as a string for curl
+mitid login myuser <url> | jq -r '.cookies | to_entries | map("\(.key)=\(.value)") | join("; ")'
+```
 
 ### AI agent / browser automation
 
 For AI agents (Claude, Cursor, etc.) controlling a browser via Chrome DevTools MCP, Playwright, or similar; where the MitID widget refuses to render:
 
-1. Run `mitid login <user> <service-login-url>` to get session cookies
+1. Run `mitid login <user> <service-login-url>` to get JSON output
 2. Run `mitid approve <user>` in parallel to auto-approve
-3. Inject the cookies into the automated browser
-4. Navigate to the service; you're logged in
+3. Parse the JSON for cookies or access tokens
+4. Inject the cookies into the automated browser, or use the access token as a Bearer token
 
 ```javascript
 // Example: inject cookies into an automated browser
@@ -94,7 +113,7 @@ Prints detailed workflow instructions for all use cases including library usage.
 | Command | Description |
 |---------|-------------|
 | `mitid info <query>` | Show identity details (username, UUID, CPR, authenticators) |
-| `mitid login <query> <url>` | Complete a full MitID login and output session cookies |
+| `mitid login <query> <url>` | Complete a full MitID login and output JSON (cookies, tokens, metadata) |
 | `mitid approve <query>` | Poll and auto-approve a pending MitID login via the simulator. Use `--watch` to keep approving |
 | `mitid save <query> [alias]` | Save an identity for quick access. Use `--note` to annotate |
 | `mitid list` | Show all saved identities |
@@ -131,13 +150,14 @@ import { MitIDClient, login, approve, resolve } from '@saturate/mitid';
 const { identity, codeApp } = await resolve('TestUser123');
 console.log(identity.identityName, identity.cprNumber);
 
-// Full login flow (returns session cookies)
+// Full login flow (returns cookies, response body, and metadata)
 const result = await login(
   'TestUser123',
   'https://your-service.example.com/login/mitid',
   console.log // status callback
 );
-console.log(result.cookies);
+console.log(result.cookies);  // session cookies
+console.log(result.body);     // response body (may contain tokens)
 
 // Auto-approve a pending login
 await approve(identity.identityId, codeApp.authenticatorId);
@@ -171,7 +191,7 @@ Service login URL
   → Extract "aux" from broker page
   → MitID core API: identify user → APP auth (push to simulator)
   → Poll for approval → SRP-6a key exchange → Finalize
-  → Authorization code → Broker callback → Session cookies
+  → Authorization code → Broker callback → Session cookies / tokens
 ```
 
 The `aux` (auxiliary data) is a base64-encoded JSON blob that the broker passes to the MitID widget. It contains the `authenticationSessionId` and a `checksum` needed to start the authentication. Each broker delivers it differently (JSON endpoint, inline JS, POST response), which is why providers need different extraction logic.

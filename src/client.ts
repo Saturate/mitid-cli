@@ -88,7 +88,6 @@ export class MitIDClient {
 	private authenticatorSessionFlowKey!: string;
 	private authenticatorEafeHash!: string;
 	private authenticatorSessionId!: string;
-	private userId!: string;
 	private finalizationSessionId: string | undefined;
 
 	constructor(options: MitIDClientOptions | string = {}) {
@@ -158,8 +157,6 @@ export class MitIDClient {
 	}
 
 	async identifyAndGetAuthenticators(userId: string): Promise<Authenticators> {
-		this.userId = userId;
-
 		const idResp = await this.fetch(
 			`${this.coreUrl}/v1/authentication-sessions/${this.authenticationSessionId}`,
 			{ method: "PUT", body: JSON.stringify({ identityClaim: userId }) },

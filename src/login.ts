@@ -8,6 +8,7 @@ export type LoginStatusCallback = (message: string) => void;
 
 export interface LoginResult {
 	cookies: CookieJar;
+	body: string;
 	finalUrl: string;
 	provider: string;
 }
@@ -128,6 +129,7 @@ export async function login(
 
 	return {
 		cookies: final.cookies,
+		body: final.body,
 		finalUrl: final.finalUrl,
 		provider: provider.name,
 	};
