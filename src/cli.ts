@@ -12,7 +12,11 @@ const pkg = JSON.parse(
 	readFileSync(join(__dirname, "..", "package.json"), "utf-8"),
 ) as { version: string };
 
-import type { CodeAppAuthenticator, MitIDIdentity, SavedIdentity } from "./index.js";
+import type {
+	CodeAppAuthenticator,
+	MitIDIdentity,
+	SavedIdentity,
+} from "./index.js";
 import { login } from "./login.js";
 import { approve, watch } from "./simulator.js";
 import {
@@ -77,14 +81,19 @@ async function ensureCodeApp(
 	noRegister: boolean,
 ): Promise<{ identity: MitIDIdentity; codeApp: CodeAppAuthenticator }> {
 	const result = await resolve(resolveQuery(query), baseUrl);
-	if (result.codeApp) return { identity: result.identity, codeApp: result.codeApp };
+	if (result.codeApp)
+		return { identity: result.identity, codeApp: result.codeApp };
 
 	if (noRegister) {
 		throw new Error("No code app authenticator found (auto-register disabled)");
 	}
 
 	console.log("  No code app found, registering one...");
-	const codeApp = await registerCodeApp(result.identity.identityId, result.identity.ial, baseUrl);
+	const codeApp = await registerCodeApp(
+		result.identity.identityId,
+		result.identity.ial,
+		baseUrl,
+	);
 	console.log(`  Registered code app: ${codeApp.authenticatorId}\n`);
 	return { identity: result.identity, codeApp };
 }
@@ -327,9 +336,7 @@ const saveCmd = defineCommand({
 				result.identity.ial,
 				baseUrl,
 			);
-			console.log(
-				`  Registered code app: ${result.codeApp.authenticatorId}\n`,
-			);
+			console.log(`  Registered code app: ${result.codeApp.authenticatorId}\n`);
 		}
 		const { identity, codeApp } = result;
 
