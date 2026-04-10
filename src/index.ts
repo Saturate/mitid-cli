@@ -12,6 +12,7 @@ export type {
 	ResolvedIdentity,
 } from "./identity.js";
 export {
+	registerCodeApp,
 	resolve,
 	searchIdentity,
 	simulatorUrl,
