@@ -134,12 +134,70 @@ export async function resolve(
 			"GET",
 			`/mitid-test-api/v4/identities/${uuid}/authenticators/code-app`,
 		)) as CodeAppAuthenticator[];
-		codeApp = apps[0] ?? null;
+		codeApp = apps.find((a) => a.state === "ACTIVE") ?? null;
 	} catch {
 		// No code app authenticator
 	}
 
 	return { identity, codeApp };
+}
+
+interface RegisterSimulatorResponse {
+	userId: string;
+	authenticatorId: string;
+	message: string;
+}
+
+export async function registerCodeApp(
+	uuid: string,
+	ial: string = "SUBSTANTIAL",
+	baseUrl: string = DEFAULT_BASE_URL,
+): Promise<CodeAppAuthenticator> {
+	const deviceMetrics = {
+		osName: "Android",
+		osVersion: "10",
+		model: "SM-A515F",
+		hwGenKey: "true",
+		jailbrokenStatus: "false",
+		malwareOnDevice: "false",
+		appName: "MitID app",
+		appVersion: "9.9.9",
+		appIdent: "dk.mitid.app.android",
+		appInstanceId: crypto.randomUUID(),
+		sdkVersion: "1.0.0",
+		swFingerprint:
+			"4b58eee4672b4ec29682fa35902589fde2bc04ba7de843b1941ba69233b79819",
+		extra: '{"packageName":"dk.mitid.app.android"}',
+	};
+
+	const device = Buffer.from(JSON.stringify(deviceMetrics)).toString("base64");
+	const body = { device, pin: "112233", ael: ial, activate: true };
+
+	const token = await getToken(baseUrl);
+	const resp = await fetch(
+		`${baseUrl}/mitid-test-api/v4/identities/${uuid}/authenticators/code-app/simulator`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				Accept: "application/json",
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(body),
+		},
+	);
+	if (!resp.ok) {
+		const err = (await resp.json().catch(() => ({}))) as Record<string, string>;
+		throw new Error(
+			`Failed to register code app: ${err.message ?? resp.status}`,
+		);
+	}
+
+	const result = (await resp.json()) as RegisterSimulatorResponse;
+	return {
+		authenticatorId: result.authenticatorId,
+		state: "ACTIVE",
+	};
 }
 
 export function simulatorUrl(
