@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Miscellaneous
+
+- Add files field to package.json for npm publish by @Saturate ([75a4286](https://github.com/Saturate/mitid-cli/commit/75a4286131bdfae8cd336518ddf063027b2bf602))
+
+
 ## [0.3.0] - 2026-04-10
 
 ### Features
