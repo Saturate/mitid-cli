@@ -145,10 +145,26 @@ const approveCmd = defineCommand({
 	},
 });
 
+function stderr(msg: string): void {
+	process.stderr.write(`${msg}\n`);
+}
+
+function tryParseJson(body: string): Record<string, unknown> | null {
+	try {
+		const parsed: unknown = JSON.parse(body);
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+			return parsed as Record<string, unknown>;
+	} catch {
+		// not JSON
+	}
+	return null;
+}
+
 const loginCmd = defineCommand({
 	meta: {
 		name: "login",
-		description: "Complete a full MitID login and output session cookies",
+		description:
+			"Complete a full MitID login and output JSON with cookies and tokens",
 	},
 	args: {
 		query: queryArg,
@@ -163,32 +179,25 @@ const loginCmd = defineCommand({
 	async run({ args }) {
 		const serviceUrl = args.url;
 
-		console.log(
-			`Logging in as ${args.query} to ${new URL(serviceUrl).hostname}...`,
-		);
-		console.log(
+		stderr(`Logging in as ${args.query} to ${new URL(serviceUrl).hostname}...`);
+		stderr(
 			`Run 'mitid approve ${args.query}' in another terminal to auto-approve.\n`,
 		);
 
-		const result = await login(
-			resolveQuery(args.query),
-			serviceUrl,
-			console.log,
-		);
+		const result = await login(resolveQuery(args.query), serviceUrl, stderr);
 
-		if (result.cookies) {
-			console.log("\nSession cookies:");
-			for (const [k, v] of Object.entries(result.cookies)) {
-				if (v) console.log(`  ${k}=${v.substring(0, 50)}...`);
-			}
-			const cookieStr = Object.entries(result.cookies)
-				.filter(([, v]) => v)
-				.map(([k, v]) => `${k}=${v}`)
-				.join("; ");
-			if (copyToClipboard(cookieStr)) {
-				console.log("\nCookies copied to clipboard");
-			}
+		const output: Record<string, unknown> = {
+			provider: result.provider,
+			finalUrl: result.finalUrl,
+			cookies: result.cookies,
+		};
+
+		const json = tryParseJson(result.body);
+		if (json) {
+			output.body = json;
 		}
+
+		console.log(JSON.stringify(output, null, 2));
 	},
 });
 
@@ -424,9 +433,10 @@ WORKFLOW 1: Manual browser testing
   4. The CLI auto-approves  The browser completes the login
   5. Repeat as needed       --watch keeps approving every login
 
-WORKFLOW 2: Fully automated login (get session cookies)
--------------------------------------------------------
-  No browser needed. Gets session cookies you can use with curl, Playwright, etc.
+WORKFLOW 2: Fully automated login
+----------------------------------
+  No browser needed. Outputs JSON to stdout with cookies, tokens, and metadata.
+  Progress messages go to stderr, so piping works cleanly.
 
   # Terminal 1: start the login
   mitid login <alias> https://your-service.example.com/login/mitid
@@ -434,7 +444,14 @@ WORKFLOW 2: Fully automated login (get session cookies)
   # Terminal 2: auto-approve when it says "Waiting for MitID app approval"
   mitid approve <alias>
 
-  The login command outputs session cookies and copies them to clipboard.
+  # Output is JSON:
+  # { "provider": "...", "finalUrl": "...", "cookies": {...}, "body": {...} }
+
+  # Extract a specific token:
+  mitid login <alias> <url> | jq -r '.body.access_token'
+
+  # Copy cookies to clipboard:
+  mitid login <alias> <url> | jq -r '.cookies | to_entries | map("\\(.key)=\\(.value)") | join("; ")' | pbcopy
 
 WORKFLOW 3: AI agent with browser automation (Chrome MCP, Playwright, etc.)
 ---------------------------------------------------------------------------
@@ -443,7 +460,7 @@ WORKFLOW 3: AI agent with browser automation (Chrome MCP, Playwright, etc.)
 
   1. Run 'mitid login <user> <service-login-url>' in background
   2. Run 'mitid approve <user>' in parallel to auto-approve
-  3. Capture the session cookies from the login output
+  3. Parse the JSON output for cookies or access tokens
   4. In the browser: navigate to the service URL
   5. Inject cookies via JavaScript:
        document.cookie = "CookieName=value; path=/";
@@ -464,9 +481,10 @@ LIBRARY USAGE
   // Look up a test identity
   const { identity, codeApp } = await resolve('Username123');
 
-  // Full login flow
+  // Full login flow — returns cookies, response body, and metadata
   const result = await login('Username123', 'https://service.example.com/login');
-  console.log(result.cookies);
+  console.log(result.cookies);  // session cookies
+  console.log(result.body);     // response body (may contain tokens)
 
   // Or use the client directly
   const client = new MitIDClient('https://pp.mitid.dk');
@@ -491,7 +509,7 @@ HOW IT WORKS
     Service → OAuth redirect → Criipto/NemLog-in broker → MitID session
     → Identify user → APP auth (push to simulator) → Poll for approval
     → SRP key exchange → Finalize → Authorization code → Service callback
-    → Session cookies
+    → Session cookies / tokens
 
 `);
 	},
