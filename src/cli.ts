@@ -198,7 +198,7 @@ const loginCmd = defineCommand({
 	meta: {
 		name: "login",
 		description:
-			"Complete a full MitID login and output JSON with cookies and tokens",
+			"Login with auto-approve and output JSON with cookies and tokens",
 	},
 	args: {
 		query: queryArg,
@@ -208,17 +208,49 @@ const loginCmd = defineCommand({
 				"Service login URL that triggers a MitID authentication flow",
 			required: true,
 		},
+		"no-approve": {
+			type: "boolean",
+			description:
+				"Don't auto-approve. Run 'mitid approve' in another terminal instead",
+			default: false,
+		},
 		env: envArg,
 	},
 	async run({ args }) {
 		const serviceUrl = args.url;
+		const baseUrl = getBaseUrl(args.env);
+		const username = resolveQuery(args.query);
 
 		stderr(`Logging in as ${args.query} to ${new URL(serviceUrl).hostname}...`);
-		stderr(
-			`Run 'mitid approve ${args.query}' in another terminal to auto-approve.\n`,
-		);
 
-		const result = await login(resolveQuery(args.query), serviceUrl, stderr);
+		let approvePromise: Promise<void> | undefined;
+		if (!args["no-approve"]) {
+			const { identity, codeApp } = await resolve(username, baseUrl);
+			if (codeApp) {
+				stderr("Auto-approving in background...\n");
+				approvePromise = approve(
+					identity.identityId,
+					codeApp.authenticatorId,
+					baseUrl,
+					stderr,
+				);
+			} else {
+				stderr(
+					"No active code app found, skipping auto-approve.\n" +
+						`Run 'mitid approve ${args.query}' in another terminal.\n`,
+				);
+			}
+		} else {
+			stderr(
+				`Run 'mitid approve ${args.query}' in another terminal to auto-approve.\n`,
+			);
+		}
+
+		const result = await login(username, serviceUrl, stderr);
+
+		if (approvePromise) {
+			await approvePromise.catch(() => {});
+		}
 
 		const output: Record<string, unknown> = {
 			provider: result.provider,
@@ -473,16 +505,13 @@ WORKFLOW 1: Manual browser testing
   4. The CLI auto-approves  The browser completes the login
   5. Repeat as needed       --watch keeps approving every login
 
-WORKFLOW 2: Fully automated login
-----------------------------------
-  No browser needed. Outputs JSON to stdout with cookies, tokens, and metadata.
+WORKFLOW 2: Fully automated login (single command)
+---------------------------------------------------
+  No browser needed. Auto-approves and outputs JSON to stdout.
   Progress messages go to stderr, so piping works cleanly.
 
-  # Terminal 1: start the login
+  # Single command - login + auto-approve:
   mitid login <alias> https://your-service.example.com/login/mitid
-
-  # Terminal 2: auto-approve when it says "Waiting for MitID app approval"
-  mitid approve <alias>
 
   # Output is JSON:
   # { "provider": "...", "finalUrl": "...", "cookies": {...}, "body": {...} }
@@ -493,19 +522,22 @@ WORKFLOW 2: Fully automated login
   # Copy cookies to clipboard:
   mitid login <alias> <url> | jq -r '.cookies | to_entries | map("\\(.key)=\\(.value)") | join("; ")' | pbcopy
 
+  # If you need to approve separately (e.g. different machine):
+  mitid login <alias> <url> --no-approve
+  # Then in another terminal: mitid approve <alias>
+
 WORKFLOW 3: AI agent with browser automation (Chrome MCP, Playwright, etc.)
 ---------------------------------------------------------------------------
   For AI agents that control a browser but can't interact with MitID's widget
   (it blocks automated browsers). The agent should:
 
-  1. Run 'mitid login <user> <service-login-url>' in background
-  2. Run 'mitid approve <user>' in parallel to auto-approve
-  3. Parse the JSON output for cookies or access tokens
-  4. In the browser: navigate to the service URL
-  5. Inject cookies via JavaScript:
+  1. Run 'mitid login <user> <service-login-url>'
+  2. Parse the JSON output for cookies or access tokens
+  3. In the browser: navigate to the service URL
+  4. Inject cookies via JavaScript:
        document.cookie = "CookieName=value; path=/";
-  6. Reload the page — the browser is now logged in
-  7. Proceed with testing
+  5. Reload the page - the browser is now logged in
+  6. Proceed with testing
 
   Example cookie injection (browser console / evaluate_script):
     const cookies = { "SessionCookie": "<value>", "Token": "<value>" };
