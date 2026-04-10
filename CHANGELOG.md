@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 
 - Export/import identities + fix bugs from audit by @Saturate ([b586d04](https://github.com/Saturate/mitid-cli/commit/b586d0445fb912c776729f2370c189c8c0d55a5d))
 
+- Auto-register simulator code app when none exists by @Saturate ([ff80c01](https://github.com/Saturate/mitid-cli/commit/ff80c0111ccc43bad18242aa38af5311779d2909))
+
 
 ### Bug Fixes
 
@@ -19,6 +21,11 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 
 - Explain aux in README and how it works section by @Saturate ([937a0e7](https://github.com/Saturate/mitid-cli/commit/937a0e7c8421d3254544e282e72d0e88f64d8b09))
+
+
+### Styling
+
+- Fix biome formatting by @Saturate ([1e0d656](https://github.com/Saturate/mitid-cli/commit/1e0d65651f818282b66e78b450f27985f4e860e6))
 
 
 ### Miscellaneous
