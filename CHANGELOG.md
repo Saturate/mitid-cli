@@ -10,12 +10,16 @@ All notable changes to this project will be documented in this file.
 
 - Export/import identities + fix bugs from audit by @Saturate ([b586d04](https://github.com/Saturate/mitid-cli/commit/b586d0445fb912c776729f2370c189c8c0d55a5d))
 
+- Output JSON from login, capture response body with tokens by @Saturate ([e698546](https://github.com/Saturate/mitid-cli/commit/e698546dc2c3db9427bc2ecef8540b98edb61abd))
+
 - Auto-register simulator code app when none exists by @Saturate ([ff80c01](https://github.com/Saturate/mitid-cli/commit/ff80c0111ccc43bad18242aa38af5311779d2909))
 
 
 ### Bug Fixes
 
 - Read version from package.json instead of hardcoding by @Saturate ([08122eb](https://github.com/Saturate/mitid-cli/commit/08122eb6f998adfccbc1a97f91c2ff608150a809))
+
+- Always include body in login output by @Saturate ([6bf2095](https://github.com/Saturate/mitid-cli/commit/6bf2095f940744fa77436294c2d025d5c1769e5a))
 
 
 ### Documentation
@@ -43,5 +47,7 @@ All notable changes to this project will be documented in this file.
 - Fix release workflow - remove broken npm upgrade, use Node 24 by @Saturate ([5a4b68a](https://github.com/Saturate/mitid-cli/commit/5a4b68acc8ddf699ad978129a1f8930d17f93d21))
 
 - Fix prepare-release race with changelog bot by @Saturate ([b0c2df1](https://github.com/Saturate/mitid-cli/commit/b0c2df1690d7dbf9ec5e46c75ee0cee65e707328))
+
+- Fix lint warning, update docs for always-present body field by @Saturate ([43b90e2](https://github.com/Saturate/mitid-cli/commit/43b90e22c37f54cedb83796e5824546c70c44176))
 
 
