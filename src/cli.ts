@@ -5,14 +5,18 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineCommand, runMain } from "citty";
-import { resolve, simulatorUrl } from "./identity.js";
+import { registerCodeApp, resolve, simulatorUrl } from "./identity.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
 	readFileSync(join(__dirname, "..", "package.json"), "utf-8"),
 ) as { version: string };
 
-import type { SavedIdentity } from "./index.js";
+import type {
+	CodeAppAuthenticator,
+	MitIDIdentity,
+	SavedIdentity,
+} from "./index.js";
 import { login } from "./login.js";
 import { approve, watch } from "./simulator.js";
 import {
@@ -64,6 +68,35 @@ const queryArg = {
 	description: "Username, UUID, CPR, or saved alias",
 	required: true as const,
 };
+
+const noRegisterArg = {
+	type: "boolean" as const,
+	description: "Don't auto-register a code app if none exists",
+	default: false,
+};
+
+async function ensureCodeApp(
+	query: string,
+	baseUrl: string,
+	noRegister: boolean,
+): Promise<{ identity: MitIDIdentity; codeApp: CodeAppAuthenticator }> {
+	const result = await resolve(resolveQuery(query), baseUrl);
+	if (result.codeApp)
+		return { identity: result.identity, codeApp: result.codeApp };
+
+	if (noRegister) {
+		throw new Error("No code app authenticator found (auto-register disabled)");
+	}
+
+	console.log("  No code app found, registering one...");
+	const codeApp = await registerCodeApp(
+		result.identity.identityId,
+		result.identity.ial,
+		baseUrl,
+	);
+	console.log(`  Registered code app: ${codeApp.authenticatorId}\n`);
+	return { identity: result.identity, codeApp };
+}
 
 // --- Subcommands ---
 
@@ -124,15 +157,16 @@ const approveCmd = defineCommand({
 			alias: ["w"],
 			default: false,
 		},
+		"no-register": noRegisterArg,
 		env: envArg,
 	},
 	async run({ args }) {
 		const baseUrl = getBaseUrl(args.env);
-		const { identity, codeApp } = await resolve(
-			resolveQuery(args.query),
+		const { identity, codeApp } = await ensureCodeApp(
+			args.query,
 			baseUrl,
+			args["no-register"],
 		);
-		if (!codeApp) throw new Error("No code app authenticator found");
 
 		console.log(`  User: ${identity.userId} (${identity.identityName})`);
 		console.log(`  Auth: ${codeApp.authenticatorId}\n`);
@@ -199,15 +233,16 @@ const openCmd = defineCommand({
 	},
 	args: {
 		query: queryArg,
+		"no-register": noRegisterArg,
 		env: envArg,
 	},
 	async run({ args }) {
 		const baseUrl = getBaseUrl(args.env);
-		const { identity, codeApp } = await resolve(
-			resolveQuery(args.query),
+		const { identity, codeApp } = await ensureCodeApp(
+			args.query,
 			baseUrl,
+			args["no-register"],
 		);
-		if (!codeApp) throw new Error("No code app authenticator found");
 
 		const url = simulatorUrl(
 			identity.identityId,
@@ -226,15 +261,16 @@ const copyCmd = defineCommand({
 	},
 	args: {
 		query: queryArg,
+		"no-register": noRegisterArg,
 		env: envArg,
 	},
 	async run({ args }) {
 		const baseUrl = getBaseUrl(args.env);
-		const { identity, codeApp } = await resolve(
-			resolveQuery(args.query),
+		const { identity, codeApp } = await ensureCodeApp(
+			args.query,
 			baseUrl,
+			args["no-register"],
 		);
-		if (!codeApp) throw new Error("No code app authenticator found");
 
 		const url = simulatorUrl(
 			identity.identityId,
@@ -287,14 +323,22 @@ const saveCmd = defineCommand({
 			description:
 				"A note to attach to this identity (e.g. 'has 3 addresses', 'expired CPR')",
 		},
+		"no-register": noRegisterArg,
 		env: envArg,
 	},
 	async run({ args }) {
 		const baseUrl = getBaseUrl(args.env);
-		const { identity, codeApp } = await resolve(
-			resolveQuery(args.query),
-			baseUrl,
-		);
+		const result = await resolve(resolveQuery(args.query), baseUrl);
+		if (!result.codeApp && !args["no-register"]) {
+			console.log("  No code app found, registering one...");
+			result.codeApp = await registerCodeApp(
+				result.identity.identityId,
+				result.identity.ial,
+				baseUrl,
+			);
+			console.log(`  Registered code app: ${result.codeApp.authenticatorId}\n`);
+		}
+		const { identity, codeApp } = result;
 
 		const entry: SavedIdentity = {
 			alias: args.alias ?? identity.userId,
