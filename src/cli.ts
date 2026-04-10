@@ -477,7 +477,7 @@ LIBRARY USAGE
   // Look up a test identity
   const { identity, codeApp } = await resolve('Username123');
 
-  // Full login flow — returns cookies, response body, and metadata
+  // Full login flow - returns cookies, response body, and metadata
   const result = await login('Username123', 'https://service.example.com/login');
   console.log(result.cookies);  // session cookies
   console.log(result.body);     // response body (may contain tokens)

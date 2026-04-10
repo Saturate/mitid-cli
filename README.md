@@ -72,7 +72,7 @@ Output is JSON:
 }
 ```
 
-The `body` field is included when the final response returns JSON (e.g. API token endpoints). Extract what you need with `jq`:
+The `body` field is always present. Parsed as JSON when possible, raw string otherwise. Extract what you need with `jq`:
 
 ```bash
 # Get an access token
