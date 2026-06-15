@@ -18,6 +18,8 @@ All notable changes to this project will be documented in this file.
 
 - Bump dependencies by @Saturate ([bce1683](https://github.com/Saturate/mitid-cli/commit/bce1683839f01f58dd4f2fca7d5d0f29c8d1379d))
 
+- Bump workflow actions off the deprecated Node 20 runtime by @Saturate ([90c82ba](https://github.com/Saturate/mitid-cli/commit/90c82babca01501099d15f47dd9afa083c8b842c))
+
 
 ## [0.3.1] - 2026-04-10
 
