@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Features
+
+- Handle DanishMitID CprEntry exchange screen by @Saturate ([4fc9732](https://github.com/Saturate/mitid-cli/commit/4fc973268f2723904c45454137b827eab2331a78))
+
+
 ### Miscellaneous
 
 - Bump dependencies by @Saturate ([bce1683](https://github.com/Saturate/mitid-cli/commit/bce1683839f01f58dd4f2fca7d5d0f29c8d1379d))
