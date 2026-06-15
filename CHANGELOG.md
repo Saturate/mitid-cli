@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Features
+
+- Attach a CycloneDX SBOM to the GitHub release by @Saturate ([c6610f9](https://github.com/Saturate/mitid-cli/commit/c6610f9adbe9ad83a8aeb06a4136ec736e054a12))
+
+
 ## [0.4.0] - 2026-06-15
 
 ### Features
