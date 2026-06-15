@@ -2,11 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.4.0] - 2026-06-15
 
 ### Features
 
 - Handle DanishMitID CprEntry exchange screen by @Saturate ([4fc9732](https://github.com/Saturate/mitid-cli/commit/4fc973268f2723904c45454137b827eab2331a78))
+
+
+### Bug Fixes
+
+- Resolve CPR/UUID login queries to the userId by @Saturate ([38e7b0b](https://github.com/Saturate/mitid-cli/commit/38e7b0ba080d11462a1c5de40a1c18763872a7e7))
 
 
 ### Miscellaneous
