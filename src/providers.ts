@@ -6,6 +6,19 @@ export interface CookieJar {
 	[key: string]: string;
 }
 
+// Data the broker may need to complete an intermediate screen after the
+// auth-code callback (e.g. Criipto's CPR entry when the scope includes ssn).
+export interface LoginContext {
+	cpr?: string;
+}
+
+// A page reached while following the post-callback redirect chain. Passed to a
+// provider's `advance` so it can decide whether more steps are required.
+export interface ExchangePage {
+	url: string;
+	body: string;
+}
+
 export interface ProviderSession {
 	clientHash: string;
 	authenticationSessionId: string;
@@ -17,6 +30,14 @@ export interface ProviderSession {
 	) => Promise<{
 		redirectUrl: string;
 	}>;
+	// Optional hook for brokers that interpose extra screens between the
+	// auth-code callback and the relying-party callback. Returns the next URL to
+	// follow, or null when `page` is already the final (non-broker) page.
+	advance?: (
+		page: ExchangePage,
+		cookies: CookieJar,
+		context: LoginContext,
+	) => Promise<{ redirectUrl: string; screen: string } | null>;
 }
 
 export interface Provider {
@@ -33,10 +54,46 @@ export interface Provider {
 
 interface CriiptoBootstrapData {
 	screen?: {
+		// The screen the broker wants the user to complete, e.g.
+		// "DanishMitID/CprEntry". Absent on the relying-party's own pages.
+		screen?: string;
 		rendition?: {
 			coreClientScriptSource?: string;
+			// Server endpoint the screen's form POSTs to (may be relative).
+			formAction?: string;
+			error?: string | null;
 		};
 	};
+}
+
+// Criipto renders its screens client-side from a base64-ish JSON blob in
+// data-bootstrap. Returns null when the page carries no such blob (i.e. it is
+// the relying party's page, not a Criipto screen).
+function parseCriiptoBootstrap(body: string): CriiptoBootstrapData | null {
+	const match = body.match(/data-bootstrap="([^"]+)"/);
+	if (!match) return null;
+	try {
+		return JSON.parse(
+			match[1]!.replace(/&quot;/g, '"').replace(/&amp;/g, "&"),
+		) as CriiptoBootstrapData;
+	} catch {
+		return null;
+	}
+}
+
+function cookieHeader(cookies: CookieJar): string {
+	return Object.entries(cookies)
+		.map(([k, v]) => `${k}=${v}`)
+		.join("; ");
+}
+
+function mergeSetCookies(resp: Response, cookies: CookieJar): void {
+	for (const sc of resp.headers.getSetCookie?.() ?? []) {
+		const [pair] = sc.split(";");
+		if (!pair) continue;
+		const [name, ...rest] = pair.split("=");
+		if (name) cookies[name.trim()] = rest.join("=").trim();
+	}
 }
 
 interface CriiptoClientData {
@@ -61,13 +118,8 @@ const criipto: Provider = {
 		body.includes("coreClientScriptSource"),
 
 	async bootstrap(url, body, cookies) {
-		const bootstrapMatch = body.match(/data-bootstrap="([^"]+)"/);
-		if (!bootstrapMatch)
-			throw new Error("Could not find Criipto bootstrap data");
-
-		const data = JSON.parse(
-			bootstrapMatch[1]!.replace(/&quot;/g, '"').replace(/&amp;/g, "&"),
-		) as CriiptoBootstrapData;
+		const data = parseCriiptoBootstrap(body);
+		if (!data) throw new Error("Could not find Criipto bootstrap data");
 
 		const coreClientUrl = data.screen?.rendition?.coreClientScriptSource;
 		if (!coreClientUrl)
@@ -104,6 +156,71 @@ const criipto: Provider = {
 				const cbUrl = new URL(callbackUrl);
 				cbUrl.searchParams.set("code", authCode);
 				return { redirectUrl: cbUrl.href };
+			},
+
+			advance: async (page, advanceCookies, context) => {
+				const data = parseCriiptoBootstrap(page.body);
+				const screen = data?.screen?.screen;
+				// No Criipto screen blob means we've left the broker and reached the
+				// relying party's page; nothing left to advance.
+				if (!screen) return null;
+
+				// Criipto requests the CPR when the OIDC scope includes "ssn". The
+				// rendered screen is a plain form POST back to the broker.
+				if (screen === "DanishMitID/CprEntry") {
+					if (!context.cpr)
+						throw new Error(
+							"Criipto requested a CPR number (scope includes 'ssn') but none was provided",
+						);
+
+					const formAction = data?.screen?.rendition?.formAction;
+					if (!formAction)
+						throw new Error("Criipto CPR screen has no formAction");
+
+					// formAction is trusted: it comes from the broker-issued bootstrap
+					// blob on the page we were redirected to, the same broker we sent the
+					// CPR-bearing user to. Resolved relative to that page's origin.
+					const postUrl = new URL(formAction, page.url);
+					const headers: Record<string, string> = {
+						"Content-Type": "application/x-www-form-urlencoded",
+						Accept:
+							"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+						"User-Agent":
+							"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+						Origin: postUrl.origin,
+						Referer: page.url,
+					};
+					const cookieStr = cookieHeader(advanceCookies);
+					if (cookieStr) headers.Cookie = cookieStr;
+
+					const resp = await fetch(postUrl.href, {
+						method: "POST",
+						headers,
+						body: `cpr=${encodeURIComponent(context.cpr)}`,
+						redirect: "manual",
+					});
+					mergeSetCookies(resp, advanceCookies);
+
+					if (resp.status < 300 || resp.status >= 400) {
+						const errBody = await resp.text();
+						const err =
+							parseCriiptoBootstrap(errBody)?.screen?.rendition?.error;
+						throw new Error(
+							`Criipto CPR submission failed (${resp.status})${err ? `: ${err}` : ""}`,
+						);
+					}
+
+					const location = resp.headers.get("location");
+					if (!location)
+						throw new Error("Criipto CPR redirect without location header");
+
+					return { redirectUrl: new URL(location, postUrl).href, screen };
+				}
+
+				throw new Error(
+					`Unhandled Criipto screen after callback: ${screen}. ` +
+						`Please open an issue: https://github.com/Saturate/mitid-cli/issues`,
+				);
 			},
 		};
 	},
