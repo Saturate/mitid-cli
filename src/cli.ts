@@ -219,17 +219,20 @@ const loginCmd = defineCommand({
 	async run({ args }) {
 		const serviceUrl = args.url;
 		const baseUrl = getBaseUrl(args.env);
-		const username = resolveQuery(args.query);
+		const query = resolveQuery(args.query);
 
 		stderr(`Logging in as ${args.query} to ${new URL(serviceUrl).hostname}...`);
 
-		// The CPR is needed by brokers that ask for it after auth (e.g. Criipto
-		// with an "ssn" scope); we read it off the resolved identity.
+		// MitID identify expects the userId; resolving the identity also lets a CPR
+		// or UUID be passed as the query. The CPR is needed by brokers that ask for
+		// it after auth (e.g. Criipto with an "ssn" scope).
+		let username = query;
 		let cpr: string | undefined;
 		let approvePromise: Promise<void> | undefined;
 		if (!args["no-approve"]) {
 			// Fail fast on an unknown identity, as before auto-approve existed.
-			const { identity, codeApp } = await resolve(username, baseUrl);
+			const { identity, codeApp } = await resolve(query, baseUrl);
+			username = identity.userId;
 			cpr = identity.cprNumber;
 			if (codeApp) {
 				stderr("Auto-approving in background...\n");
@@ -246,11 +249,13 @@ const loginCmd = defineCommand({
 				);
 			}
 		} else {
-			// With external approval the CPR is best-effort: don't fail the flow if
-			// the lookup fails (the broker may not even ask for it).
-			cpr = await resolve(username, baseUrl)
-				.then((r) => r.identity.cprNumber)
-				.catch(() => undefined);
+			// With external approval the lookup is best-effort: fall back to the raw
+			// query (a userId already works; a CPR/UUID can't without the lookup).
+			const resolved = await resolve(query, baseUrl).catch(() => null);
+			if (resolved) {
+				username = resolved.identity.userId;
+				cpr = resolved.identity.cprNumber;
+			}
 			stderr(
 				`Run 'mitid approve ${args.query}' in another terminal to auto-approve.\n`,
 			);
