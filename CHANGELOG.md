@@ -9,6 +9,11 @@ All notable changes to this project will be documented in this file.
 - Handle DanishMitID CprEntry exchange screen by @Saturate ([4fc9732](https://github.com/Saturate/mitid-cli/commit/4fc973268f2723904c45454137b827eab2331a78))
 
 
+### Bug Fixes
+
+- Resolve CPR/UUID login queries to the userId by @Saturate ([38e7b0b](https://github.com/Saturate/mitid-cli/commit/38e7b0ba080d11462a1c5de40a1c18763872a7e7))
+
+
 ### Miscellaneous
 
 - Bump dependencies by @Saturate ([bce1683](https://github.com/Saturate/mitid-cli/commit/bce1683839f01f58dd4f2fca7d5d0f29c8d1379d))
