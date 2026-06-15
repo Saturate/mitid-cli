@@ -247,6 +247,35 @@ const myProvider: Provider = {
 const result = await login('username', 'https://my-service.com/login', console.log, myProvider);
 ```
 
+If your broker shows extra screens *after* the auth-code callback (Criipto, for
+example, can ask for a CPR number when the OIDC scope includes `ssn`), add an
+optional **`advance`** hook. After the auth code is exchanged, the login flow
+follows redirects and then repeatedly calls `advance` with the page it landed
+on. Return the next URL to follow, or `null` once you've reached the relying
+party's own page:
+
+```typescript
+advance: async (page, cookies, context) => {
+  // page.body is the HTML the redirect chain stopped on; inspect it to decide
+  // whether the broker is asking for more input.
+  if (/* not one of my broker's screens */) return null;
+
+  // e.g. submit the CPR the broker is asking for and hand back the redirect.
+  const resp = await fetch(formAction, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `cpr=${context.cpr}`,
+    redirect: 'manual',
+  });
+  const location = resp.headers.get('location');
+  if (!location) throw new Error('Broker did not redirect after CPR submit');
+  return { redirectUrl: location, screen: 'CprEntry' };
+},
+```
+
+`context.cpr` is populated from the resolved test identity, so screens that ask
+for a CPR can be completed without prompting.
+
 PRs adding new providers to `src/providers.ts` are welcome.
 
 ## Requirements

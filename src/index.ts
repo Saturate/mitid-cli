@@ -17,9 +17,19 @@ export {
 	searchIdentity,
 	simulatorUrl,
 } from "./identity.js";
-export type { LoginResult, LoginStatusCallback } from "./login.js";
+export type {
+	LoginOptions,
+	LoginResult,
+	LoginStatusCallback,
+} from "./login.js";
 export { login } from "./login.js";
-export type { CookieJar, Provider, ProviderSession } from "./providers.js";
+export type {
+	CookieJar,
+	ExchangePage,
+	LoginContext,
+	Provider,
+	ProviderSession,
+} from "./providers.js";
 export { detectProvider, getProvider, listProviders } from "./providers.js";
 export type { SimulatorStatusCallback } from "./simulator.js";
 export { approve, watch } from "./simulator.js";

@@ -1,10 +1,16 @@
 // MitID login flow orchestration
 // Auto-detects the broker/provider and handles the full OAuth → MitID → session flow
 import { MitIDClient } from "./client.js";
-import type { CookieJar, Provider } from "./providers.js";
+import type { CookieJar, LoginContext, Provider } from "./providers.js";
 import { detectProvider, listProviders } from "./providers.js";
 
 export type LoginStatusCallback = (message: string) => void;
+
+export interface LoginOptions {
+	// CPR number, needed by brokers that ask for it after auth (e.g. Criipto
+	// when the OIDC scope includes "ssn").
+	cpr?: string;
+}
 
 export interface LoginResult {
 	cookies: CookieJar;
@@ -52,6 +58,16 @@ export async function followRedirects(
 			}
 		}
 
+		// Set MITID_DEBUG to trace the redirect chain; invaluable when a broker
+		// changes its flow (as Criipto did by adding the CPR-entry screen).
+		if (process.env.MITID_DEBUG)
+			console.error(
+				`[hop] ${resp.status} ${currentUrl}` +
+					(resp.headers.get("location")
+						? ` -> ${resp.headers.get("location")}`
+						: ""),
+			);
+
 		if (resp.status >= 300 && resp.status < 400) {
 			const location = resp.headers.get("location");
 			if (!location) throw new Error("Redirect without location header");
@@ -80,6 +96,7 @@ export async function login(
 	serviceLoginUrl: string,
 	onStatus?: LoginStatusCallback,
 	providerOverride?: Provider,
+	options?: LoginOptions,
 ): Promise<LoginResult> {
 	const log = onStatus ?? console.log;
 
@@ -124,7 +141,33 @@ export async function login(
 	log("Exchanging auth code...");
 	const { redirectUrl } = await session.exchange(authCode, cookies);
 
-	const final = await followRedirects(redirectUrl, cookies);
+	let final = await followRedirects(redirectUrl, cookies);
+
+	// Some brokers interpose extra screens between the auth-code callback and the
+	// relying-party callback (e.g. Criipto's CPR entry when the scope includes
+	// "ssn"), served as a 200 page that `followRedirects` can't advance on its
+	// own. Let the provider drive through them until we reach the final page.
+	const context: LoginContext = { cpr: options?.cpr };
+	const maxScreens = 5;
+	let settled = !session.advance;
+	for (let i = 0; session.advance && i < maxScreens; i++) {
+		const next = await session.advance(
+			{ url: final.finalUrl, body: final.body },
+			final.cookies,
+			context,
+		);
+		if (!next) {
+			settled = true;
+			break;
+		}
+		log(`Completing broker screen: ${next.screen}`);
+		final = await followRedirects(next.redirectUrl, final.cookies);
+	}
+	if (!settled)
+		throw new Error(
+			`Broker did not reach a final page after ${maxScreens} screens`,
+		);
+
 	log("Login complete!");
 
 	return {
