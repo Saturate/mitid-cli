@@ -1,4 +1,6 @@
 # mitid
+![NPM Version](https://img.shields.io/npm/v/%40saturate%2Fmitid)
+![NPM License](https://img.shields.io/npm/l/%40saturate%2Fmitid)
 
 CLI and Node.js library for authenticating with Denmark's MitID test environment; without a browser.
 
